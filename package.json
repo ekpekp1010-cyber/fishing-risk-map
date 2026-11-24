@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "postinstall": "node -e \"const fs=require('fs');fs.mkdirSync('public',{recursive:true});fs.writeFileSync('public/maplibre-gl-worker.mjs','/* eslint-disable */\\n'+fs.readFileSync('node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs','utf8'))\""
+    "postinstall": "node -e \"const fs=require('fs');fs.mkdirSync('public',{recursive:true});fs.writeFileSync('public/maplibre-gl-worker.mjs','/* eslint-disable */\\n'+fs.readFileSync('node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs','utf8'))\"",
+    "test": "vitest run"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.119.2",
@@ -25,6 +26,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
     "supabase": "^3.3.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.12"
   }
 }
