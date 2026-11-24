@@ -75,6 +75,8 @@ export interface LayerState {
   radar: boolean;
   clouds: boolean;
   currents: boolean;
+  /** 밤낮. 시간 막대의 시각에 뉴포트의 해가 어디 있는지 계산해 지도를 어둡게 하고 하늘색을 바꾼다 */
+  daylight: boolean;
 }
 
 export const DEFAULT_LAYERS: LayerState = {
@@ -88,6 +90,7 @@ export const DEFAULT_LAYERS: LayerState = {
   radar: false,
   clouds: false,
   currents: false,
+  daylight: true,
 };
 
 /**

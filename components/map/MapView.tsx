@@ -12,6 +12,7 @@ import { startWindParticles, tempImage, tempLabels, waveImage, type LiveGrid, ty
 import { gradeShapeSvg } from '@/lib/map/pins';
 import type { OceanCurrent } from '@/lib/map/currents';
 import { createCurrentField, startCurrentParticles } from '@/lib/map/current-flow';
+import { skyLook, type SkyLook } from '@/lib/map/sun';
 
 export interface MapFocus {
   lng: number;
@@ -43,6 +44,8 @@ interface Props {
   /** 시간 막대의 시각에 해당하는 기온 격자. 그 시각의 값이 없으면 null이고 기온 그림을 숨긴다 */
   tempField: TempField | null;
   currents?: OceanCurrent[];
+  /** 시간 막대의 시각에 태양이 지평선 위로 떠 있는 높이(도). null이면 밤낮을 표시하지 않고 한낮으로 그린다 */
+  sunAltitude: number | null;
 }
 
 interface PinEntry {
@@ -53,7 +56,20 @@ interface PinEntry {
 
 const NEUTRAL = '#79747E';
 const GRADES: Grade[] = ['safe', 'caution', 'danger'];
+/** 밤에 지도를 덮는 색과 가장 어두울 때의 세기. 한밤에도 해안선과 길이 보일 만큼만 덮는다 */
+const NIGHT = { color: '#060d21', maxOpacity: 0.6 };
 let protocolAdded = false;
+
+/** 하늘과 먼 곳의 안개. 기울여 볼 때 지평선이 자연스럽게 보인다. 색은 태양 높이를 따른다. */
+const skySpec = (look: SkyLook) => ({
+  'sky-color': look.skyColor,
+  'horizon-color': look.horizonColor,
+  'fog-color': look.fogColor,
+  'sky-horizon-blend': 0.6,
+  'horizon-fog-blend': 0.6,
+  'fog-ground-blend': 0.35,
+  'atmosphere-blend': 0.6,
+});
 
 export default function MapView({
   spots,
@@ -67,6 +83,7 @@ export default function MapView({
   liveGrid,
   tempField,
   currents,
+  sunAltitude,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -196,16 +213,21 @@ export default function MapView({
         { id: 'radar', type: 'raster', source: 'radar', layout: { visibility: 'none' }, paint: { 'raster-opacity': 0.75 } },
         firstLabelLayer,
       );
-      // 하늘과 먼 곳의 안개. 기울여 볼 때 지평선이 자연스럽게 보인다.
-      map.setSky({
-        'sky-color': '#7fb2e5',
-        'horizon-color': '#dce9f5',
-        'fog-color': '#dce9f5',
-        'sky-horizon-blend': 0.6,
-        'horizon-fog-blend': 0.6,
-        'fog-ground-blend': 0.35,
-        'atmosphere-blend': 0.6,
-      });
+      // 밤: 사진·구름·레이더 위를 어두운 남색으로 덮는다. 지명, 위험 구역, 파고·기온 그림은 이보다 위라 어두워지지 않는다.
+      // 세기를 서서히 바꾸지 않는다. 3D 지형은 바뀐 순간에 한 번만 다시 그려져, 서서히 바꾸면 처음 값에 멈춘 채로 남는다.
+      map.addLayer(
+        {
+          id: 'night',
+          type: 'background',
+          paint: {
+            'background-color': NIGHT.color,
+            'background-opacity': 0,
+            'background-opacity-transition': { duration: 0, delay: 0 },
+          },
+        },
+        firstLabelLayer,
+      );
+      map.setSky(skySpec(skyLook(null)));
       map.addLayer({
         id: 'relief',
         type: 'hillshade',
@@ -315,6 +337,15 @@ export default function MapView({
     set('waves', layers.waves);
     // 기온은 아래의 기온 효과가 맡는다. 그 시각의 값이 없을 때는 켜져 있어도 숨겨야 하기 때문이다.
   }, [ready, layers]);
+
+  // 밤낮: 태양 높이에 맞춰 하늘색을 바꾸고 지도를 어둡게 덮는다
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    const look = skyLook(sunAltitude);
+    map.setSky(skySpec(look));
+    map.setPaintProperty('night', 'background-opacity', look.darkness * NIGHT.maxOpacity);
+  }, [ready, sunAltitude]);
 
   // 실시간 파고: 칸의 경계 없이 부드러운 색 그라데이션으로 그린다
   useEffect(() => {

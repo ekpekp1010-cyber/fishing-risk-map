@@ -18,6 +18,7 @@ import { DEFAULT_LAYERS, LIVE, PILOT, inPilotBbox, type LayerState } from '@/lib
 import { liveSummary, loadLiveGrid, sampleGrid, TEMP_STOPS, WAVE_STOPS, type LiveGrid } from '@/lib/map/live';
 import { loadCurrentForecast, type CurrentForecast } from '@/lib/map/currents';
 import { loadTempForecast, type TempForecast } from '@/lib/map/temperature';
+import { isNight, nightSpans, sunEvents, sunPosition } from '@/lib/map/sun';
 import type { Grade, SpotSummary, SpotType } from '@/lib/contract/types';
 import { fixtureZonesGeoJson } from '@/lib/ui/dev-fixtures';
 import { GRADE_LABEL, SAFETY_NOTICE } from '@/lib/ui/labels';
@@ -102,6 +103,29 @@ export default function MapApp() {
 
   const time = addHoursIso(baseTime, index);
   const currents = layers.currents ? currentForecast?.get(Date.parse(time) / 1000) : undefined;
+
+  // 밤낮: 시범 지역의 태양 위치를 시각으로 계산한다. 막대가 '지금'이면 정시가 아니라 실제 현재 시각을 쓰고 1분마다 다시 잰다.
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  const sunDays = useMemo(() => {
+    const from = Date.parse(baseTime);
+    const [lng, lat] = PILOT.center;
+    return {
+      // 막대의 마지막 시각 뒤에 오는 해 뜸·해 짐도 알려 줄 수 있게 하루를 더 본다
+      events: sunEvents(from, Date.parse(addHoursIso(baseTime, HOURS_AHEAD + 24)), lng, lat),
+      nights: nightSpans(from, Date.parse(addHoursIso(baseTime, MAX_INDEX)), lng, lat),
+    };
+  }, [baseTime]);
+  const baseMs = Date.parse(baseTime);
+  const sunMs = index === 0 ? Math.min(Math.max(nowMs, baseMs), baseMs + 59 * 60_000) : Date.parse(time);
+  const sun = sunPosition(sunMs, PILOT.center[0], PILOT.center[1]);
+  const nextSun = sunDays.events.find((e) => e.at > sunMs);
+  const sunNote = nextSun
+    ? `${nextSun.kind === 'rise' ? '해 뜸' : '해 짐'} ${formatClock(new Date(nextSun.at).toISOString())}`
+    : null;
 
   useEffect(() => {
     if (!layers.currents || currentForecast || currentFailed) return;
@@ -267,6 +291,7 @@ export default function MapApp() {
             liveGrid={liveGrid}
             tempField={tempField}
             currents={currents}
+            sunAltitude={layers.daylight ? sun.altitude : null}
           />
         ) : (
           <div className="nomap" aria-label="포인트 목록">
@@ -383,6 +408,9 @@ export default function MapApp() {
             max={MAX_INDEX}
             baseTime={baseTime}
             playing={playing}
+            nights={sunDays.nights}
+            night={isNight(sun.altitude)}
+            sunNote={sunNote}
             onChange={(i) => {
               setPlaying(false);
               setIndex(i);

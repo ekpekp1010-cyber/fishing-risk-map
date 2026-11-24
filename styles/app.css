@@ -521,12 +521,40 @@
   color: var(--md-on-surface-variant);
   font: var(--md-label-small);
 }
+/* 밤낮 띠: 막대 바로 아래에 밤인 구간만 짙게 칠한다. 손잡이 뒤에 깔려 조작을 가리지 않는다 */
+.timebar__range {
+  position: relative;
+  isolation: isolate;
+}
+.timebar__nights {
+  --sun-night: #3d4a94;
+  position: absolute;
+  z-index: -1;
+  top: calc(50% + 6px);
+  right: 0;
+  left: 0;
+  height: 3px;
+  border-radius: 2px;
+  background-color: #e6b84f;
+  pointer-events: none;
+}
 .timebar__now {
   display: flex;
   flex-direction: column;
+  align-items: flex-end;
   min-width: 92px;
   font: var(--md-title-small);
   text-align: right;
+  white-space: nowrap;
+}
+.timebar__when {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.timebar__sun {
+  flex: none;
+  color: var(--md-on-surface-variant);
 }
 .timebar__now small {
   color: var(--md-on-surface-variant);
