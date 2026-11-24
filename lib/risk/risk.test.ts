@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BREAKPOINTS, computeHazard, computeHourlyRisk, gradeOf, isStale, leanRisky, scale } from './index';
+import { BREAKPOINTS, computeHazard, computeHourlyRisk, gradeOf, isStale, leanRisky, scale, sneakerRunup } from './index';
 import type { HourConditions, SpotProfile, TerrainInput } from './index';
 
 const T = '2026-11-25T15:00:00Z';
@@ -111,6 +111,30 @@ describe('computeHazard', () => {
     expect(computeHazard(c, { ...pier, waveExposure: 0 }).byCode.wave).toBeCloseTo(17.5);
     expect(computeHazard(c, pier).byCode.wave).toBe(70);
     expect(computeHazard(c, { ...pier, waveExposure: 0.5 }).factors[0].label).toContain('이곳은 파랑이 줄어듦');
+  });
+
+  it('스니커 웨이브: Stockdon 처오름, 긴 주기일수록 크고 해변·갯바위·방파제에만', () => {
+    const beach: SpotProfile = { type: 'beach', elevationM: 2, egressMinElevationM: null, slopeDeg: 2 };
+    // H0 2 m, T 12 s → L0 = 9.81·144/2π ≈ 224.8 m → R2 = 0.043·√449.6 ≈ 0.912 m
+    expect(sneakerRunup({ ...calm, swellHeightM: 2, swellPeriodS: 12 }, beach, 1)).toBeCloseTo(0.912, 2);
+    const short = sneakerRunup({ ...calm, swellHeightM: 2, swellPeriodS: 8 }, beach, 1)!;
+    const long = sneakerRunup({ ...calm, swellHeightM: 2, swellPeriodS: 18 }, beach, 1)!;
+    expect(long / short).toBeCloseTo(18 / 8); // 처오름은 주기에 비례
+    expect(sneakerRunup({ ...calm, swellHeightM: 2, swellPeriodS: 12 }, beach, 0.25)).toBeCloseTo(0.456, 2); // 노출 1/4 → √
+    expect(sneakerRunup({ ...calm, swellHeightM: 2, swellPeriodS: 12 }, pier, 1)).toBeNull();
+    expect(sneakerRunup({ ...calm, swellHeightM: null, waveHeightM: null, swellPeriodS: 12 }, beach, 1)).toBeNull();
+  });
+
+  it('스니커 요인 = 해수면 + 처오름과 발밑 고도의 여유', () => {
+    const beach: SpotProfile = { type: 'beach', elevationM: 2, egressMinElevationM: null, slopeDeg: 2 };
+    // 해수면 1.0 + 처오름 0.912 → 여유 0.088 m → 0.5~0 m 구간: 70 + (0.5-0.088)/0.5·30 ≈ 94.7
+    const h = computeHazard({ ...calm, seaLevelM: 1.0, swellHeightM: 2, swellPeriodS: 12 }, beach);
+    expect(h.byCode.sneaker).toBeCloseTo(94.7, 0);
+    expect(h.factors.find((f) => f.code === 'sneaker')!.label).toContain('너울 처오름 약 0.9 m(주기 12초)');
+    // 간조(-1.0 m)면 여유 2.09 m → 0점
+    expect(computeHazard({ ...calm, seaLevelM: -1.0, swellHeightM: 2, swellPeriodS: 12 }, beach).byCode.sneaker).toBe(0);
+    // 해수면을 모르면 계산하지 않는다
+    expect(computeHazard({ ...calm, seaLevelM: null, swellHeightM: 2, swellPeriodS: 12 }, beach).byCode.sneaker).toBe(0);
   });
 
   it('빠진 핵심 예보를 기록한다', () => {

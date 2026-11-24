@@ -53,6 +53,22 @@ export const BREAKPOINTS = {
  */
 export const MIN_WAVE_EXPOSURE = 0.25;
 
+/**
+ * 스니커 웨이브(처오름) 요인. 오리건 주립대 연구(2023, Natural Hazards and Earth System Sciences)는
+ * 먼 폭풍의 긴 주기 너울이 해변을 크게 밀어 올리는 극한 처오름을 스니커 웨이브의 원인으로 봤다.
+ * 처오름 높이는 Stockdon et al.(2006) 소산형 해변 식: R2 = 0.043 × √(H0 × L0), L0 = g·T²/2π
+ * (H0 = 외해 너울 파고 × 파랑 노출 정도, T = 너울 주기). 주기가 길수록 L0가 커져 처오름이 커진다.
+ * 판정: 여유 = 포인트·퇴로 중 낮은 고도 − (해수면 + extremeFactor × R2). 조석과 같은 구간으로 점수화.
+ * 처오름이 의미 있는 유형(해변·갯바위·방파제)에만 쓴다. 부두 상판과 하구 갯벌은 뺀다.
+ */
+export const SNEAKER = {
+  coefficient: 0.043,
+  /** R2(상위 2% 처오름)에 곱하는 값. 스니커 웨이브는 R2보다 드문 극한값이다 */
+  extremeFactor: 1.0,
+  types: ['beach', 'rocks', 'jetty'] as const,
+  breakpoints: [[2.0, 0], [1.0, 40], [0.5, 70], [0, 100]] as const satisfies Breakpoints,
+};
+
 /** 너울 주기를 따지는 최소 파고(m). PRD: 파고 1 m 이상일 때 */
 export const SWELL_MIN_HEIGHT_M = 1.0;
 
@@ -68,8 +84,9 @@ export const THUNDER_CODES = [95, 96, 99] as const;
  * 여러 요인이 겹치는 효과를 키우려면 보정 단계에서 합을 1보다 크게 잡는다.
  */
 export const HAZARD_WEIGHTS = {
-  wave: 0.25,
-  swell: 0.15,
+  wave: 0.2,
+  swell: 0.1,
+  sneaker: 0.1,
   wind: 0.15,
   rain: 0.1,
   tide: 0.2,

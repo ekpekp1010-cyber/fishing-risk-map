@@ -8,6 +8,7 @@ import {
   HAZARD_WEIGHTS,
   type HazardCode,
   MIN_WAVE_EXPOSURE,
+  SNEAKER,
   SWELL_MIN_HEIGHT_M,
   THUNDER_CODES,
 } from './constants';
@@ -89,6 +90,19 @@ export function scale(value: number, points: Breakpoints): number {
 const has = (v: number | null | undefined): v is number => typeof v === 'number' && Number.isFinite(v);
 const fmt1 = (v: number) => v.toFixed(1);
 
+/**
+ * 스니커 웨이브 처오름 높이(m, 해수면 위). Stockdon(2006) 소산형 해변 식 R2 = 0.043·√(H0·L0)에
+ * SNEAKER.extremeFactor를 곱한다. 처오름 유형이 아니거나 너울 값이 없으면 null.
+ */
+export function sneakerRunup(c: HourConditions, spot: SpotProfile, exposure: number): number | null {
+  if (!(SNEAKER.types as readonly string[]).includes(spot.type)) return null;
+  const h = has(c.swellHeightM) ? c.swellHeightM : c.waveHeightM;
+  if (!has(h) || !has(c.swellPeriodS) || h <= 0 || c.swellPeriodS <= 0) return null;
+  const h0 = h * exposure;
+  const l0 = (9.81 * c.swellPeriodS ** 2) / (2 * Math.PI);
+  return SNEAKER.extremeFactor * SNEAKER.coefficient * Math.sqrt(h0 * l0);
+}
+
 export function tideMargin(c: HourConditions, spot: SpotProfile): number | null {
   if (!has(c.seaLevelM)) return null;
   const ground = has(spot.egressMinElevationM) ? Math.min(spot.elevationM, spot.egressMinElevationM) : spot.elevationM;
@@ -136,6 +150,13 @@ export function computeHazard(c: HourConditions, spot: SpotProfile): HazardResul
     const head = c.nextHighTideClock ? `${c.nextHighTideClock} 만조, ` : '';
     const tail = margin <= 0 ? '포인트·퇴로가 물에 잠길 수 있음' : `해수면까지 여유 ${fmt1(margin)} m`;
     add('tide', scale(margin, BREAKPOINTS.tide), head + tail);
+  }
+
+  const runup = sneakerRunup(c, spot, exposure);
+  if (margin !== null && runup !== null) {
+    const reach = margin - runup; // 해수면 위로 밀려 올라온 물과 발밑 사이 여유
+    const tail = reach <= 0 ? '파도가 포인트·퇴로까지 밀려 올라올 수 있음' : `밀려 올라온 물까지 여유 ${fmt1(reach)} m`;
+    add('sneaker', scale(reach, SNEAKER.breakpoints), `너울 처오름 약 ${fmt1(runup)} m(주기 ${Math.round(c.swellPeriodS!)}초), ${tail}`);
   }
 
   if (spot.type === 'estuary' && has(c.riverRatio)) {

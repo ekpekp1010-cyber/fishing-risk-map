@@ -13,6 +13,7 @@ const CJS = join(ROOT, 'node_modules/.cache/fishrisk-risk-cjs/risk');
 const risk = require(join(CJS, 'index.js'));
 const constants = require(join(CJS, 'constants.js'));
 const ORIGINAL = structuredClone(constants.BREAKPOINTS);
+const SNEAKER0 = { ...constants.SNEAKER };
 
 const OUT = join(ROOT, 'pipeline/out/incidents');
 const terrain = JSON.parse(readFileSync(join(OUT, 'terrain.json'), 'utf8'));
@@ -56,15 +57,21 @@ const CANDIDATES = {
   'D 파랑 기후+돌풍×1.5 (채택)': { wave: WC, swell: SC, gust: G15 },
   'E 2.5/4 m, 12/16 s+돌풍×1.5': { wave: [[1.0, 0], [2.5, 40], [4.0, 70], [6.5, 100]], swell: [[8, 0], [12, 40], [16, 70], [20, 100]], gust: G15 },
   'F 2/3.5 m, 11/15 s+돌풍×1.5': { wave: [[0.8, 0], [2.0, 40], [3.5, 70], [6.0, 100]], swell: [[7, 0], [11, 40], [15, 70], [19, 100]], gust: G15 },
+  'D + 처오름 ×1.0': { wave: WC, swell: SC, gust: G15, sneaker: 1.0 },
+  'D + 처오름 ×1.5': { wave: WC, swell: SC, gust: G15, sneaker: 1.5 },
+  'D + 처오름 ×2.0': { wave: WC, swell: SC, gust: G15, sneaker: 2.0 },
 };
 
 const rank = { safe: 0, caution: 1, danger: 2 };
 const pct = (x, n) => `${Math.round((100 * x) / n)}%`.padStart(4);
-console.log('후보'.padEnd(26), '사고 주의+  사고 위험 | 겨울 정오 안전 주의 위험 | 여름 정오 안전 위험 | 사고별 등급');
+console.log('후보(A~F는 처오름 요인 없음)'.padEnd(26), '사고 주의+  사고 위험 | 겨울 정오 안전 주의 위험 | 여름 정오 안전 위험 | 사고별 등급');
 for (const [name, bp] of Object.entries(CANDIDATES)) {
   constants.BREAKPOINTS.wave = bp.wave;
   constants.BREAKPOINTS.swell = bp.swell;
   constants.BREAKPOINTS.gust = bp.gust;
+  // 스니커(처오름) 요인: 후보에 sneaker가 없으면 끈다(유형 목록을 비움)
+  constants.SNEAKER.types = bp.sneaker ? SNEAKER0.types : [];
+  constants.SNEAKER.extremeFactor = bp.sneaker ?? SNEAKER0.extremeFactor;
   const inc = incidents.map((s) => risk.computeHourlyRisk(s.c, s.profile, s.tin, s.live));
   const cnt = { winter: [0, 0, 0], summer: [0, 0, 0] };
   for (const s of control) cnt[s.season][rank[risk.computeHourlyRisk(s.c, s.profile, s.tin, s.live).grade]]++;
@@ -80,3 +87,4 @@ for (const [name, bp] of Object.entries(CANDIDATES)) {
 constants.BREAKPOINTS.wave = ORIGINAL.wave;
 constants.BREAKPOINTS.swell = ORIGINAL.swell;
 constants.BREAKPOINTS.gust = ORIGINAL.gust;
+Object.assign(constants.SNEAKER, SNEAKER0);
