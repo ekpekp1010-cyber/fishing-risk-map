@@ -2,6 +2,8 @@
 
 - 작성: 2026-11-24, 개발자 B(`dev-b`)
 - 상태: 초안. 아래 "정해야 할 것"을 사용자가 정한 뒤 0단계부터 진행한다.
+- 진행 중(2026-11-24, 박은규 PC의 세션): 2단계의 화면 골격을 먼저 한다. 지도를 화면 전체로 넓히고, 내비게이션 레일·오른쪽 시트·추천·설정 화면을 지도 위에 뜬 패널 하나로 합친다(5.1~5.3).
+  건드리는 파일: `components/shell/*`, `components/map/MapApp.tsx`, `MapAppLoader.tsx`, `MapView.tsx`, `components/spot/RecommendPage.tsx`, `app/page.tsx`, `app/recommend/page.tsx`, `app/settings/page.tsx`, `styles/app.css`의 골격·시트 부분. 색 테마(1단계)와 실사 지도(0·3단계)는 건드리지 않는다. 같은 파일을 동시에 고치지 않도록 이 줄을 먼저 올린다.
 - 범위: 지도 표현과 화면 구성 전체. 위험도 계산, API, 데이터(A 소유)는 바꾸지 않는다.
 - 관계: PRD의 "메인 화면 UI/UX" 절과 `docs/roles/developer-b-map-ui.md`의 화면 구성을 대체한다. 기능 요구(등급, 원인, 접근성, 성능)는 그대로 따른다.
 
