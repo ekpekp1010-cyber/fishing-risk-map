@@ -7,7 +7,7 @@ import { Protocol } from 'pmtiles';
 import type { FeatureCollection } from 'geojson';
 import type { Grade, SpotSummary } from '@/lib/ui/api-types';
 import { GRADE_LABEL, TYPE_LABEL } from '@/lib/ui/labels';
-import { GRADE_COLOR, MAP_CONFIG, PILOT, inPilotBbox, type LayerState } from '@/lib/map/config';
+import { GRADE_COLOR, MAP_CONFIG, PILOT, VIEW_3D, inPilotBbox, type LayerState } from '@/lib/map/config';
 import { gradeShapeSvg } from '@/lib/map/pins';
 
 export interface MapFocus {
@@ -73,9 +73,9 @@ export default function MapView({ spots, selectedId, onSelect, zoneGrades, zones
       style: MAP_CONFIG.styleUrl,
       center: PILOT.center,
       zoom: PILOT.zoom,
-      pitch: 55,
-      bearing: -18,
-      maxPitch: 75,
+      pitch: VIEW_3D.pitch,
+      bearing: VIEW_3D.bearing,
+      maxPitch: 80,
       attributionControl: false,
     });
     mapRef.current = map;
@@ -99,10 +99,29 @@ export default function MapView({ spots, selectedId, onSelect, zoneGrades, zones
       map.addSource('dem', dem);
       map.addSource('dem-relief', dem);
 
-      if (MAP_CONFIG.satelliteTiles) {
-        map.addSource('satellite', { type: 'raster', tiles: [MAP_CONFIG.satelliteTiles], tileSize: 256 });
-        map.addLayer({ id: 'satellite', type: 'raster', source: 'satellite', layout: { visibility: 'none' } });
-      }
+      // 항공·위성 사진을 지형 위에 입힌다. 지명 글자는 사진 위에 남도록 첫 글자 레이어 바로 아래에 넣는다.
+      const firstLabelLayer = map.getStyle().layers.find((l) => l.type === 'symbol')?.id;
+      map.addSource('satellite', {
+        type: 'raster',
+        tiles: [MAP_CONFIG.satelliteTiles],
+        tileSize: 256,
+        maxzoom: MAP_CONFIG.satelliteMaxZoom,
+        attribution: MAP_CONFIG.satelliteAttribution,
+      });
+      map.addLayer(
+        { id: 'satellite', type: 'raster', source: 'satellite', layout: { visibility: 'none' } },
+        firstLabelLayer,
+      );
+      // 하늘과 먼 곳의 안개. 기울여 볼 때 지평선이 자연스럽게 보인다.
+      map.setSky({
+        'sky-color': '#7fb2e5',
+        'horizon-color': '#dce9f5',
+        'fog-color': '#dce9f5',
+        'sky-horizon-blend': 0.6,
+        'horizon-fog-blend': 0.6,
+        'fog-ground-blend': 0.35,
+        'atmosphere-blend': 0.6,
+      });
       map.addLayer({
         id: 'relief',
         type: 'hillshade',
@@ -133,14 +152,14 @@ export default function MapView({ spots, selectedId, onSelect, zoneGrades, zones
         type: 'fill',
         source: 'zones',
         ...sourceLayer,
-        paint: { 'fill-color': NEUTRAL, 'fill-opacity': 0.4 },
+        paint: { 'fill-color': NEUTRAL, 'fill-opacity': 0.45 },
       } as maplibregl.AddLayerObject);
       map.addLayer({
         id: 'zones-line',
         type: 'line',
         source: 'zones',
         ...sourceLayer,
-        paint: { 'line-color': NEUTRAL, 'line-width': 1.5 },
+        paint: { 'line-color': NEUTRAL, 'line-width': 2.5 },
       } as maplibregl.AddLayerObject);
 
       // 성능 측정용 표시: 페이지를 연 뒤 지도를 조작할 수 있게 되기까지 걸린 시간
@@ -166,8 +185,8 @@ export default function MapView({ spots, selectedId, onSelect, zoneGrades, zones
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
-    map.setTerrain(mode === '3d' ? { source: 'dem', exaggeration: 1.4 } : null);
-    map.easeTo({ pitch: mode === '3d' ? 55 : 0, bearing: mode === '3d' ? -18 : 0, duration: 600 });
+    map.setTerrain(mode === '3d' ? { source: 'dem', exaggeration: VIEW_3D.exaggeration } : null);
+    map.easeTo({ pitch: mode === '3d' ? VIEW_3D.pitch : 0, bearing: mode === '3d' ? VIEW_3D.bearing : 0, duration: 600 });
   }, [ready, mode]);
 
   // 레이어 켜고 끄기
@@ -251,7 +270,7 @@ export default function MapView({ spots, selectedId, onSelect, zoneGrades, zones
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready || !focus) return;
-    map.flyTo({ center: [focus.lng, focus.lat], zoom: Math.max(map.getZoom(), 14), duration: 900 });
+    map.flyTo({ center: [focus.lng, focus.lat], zoom: Math.max(map.getZoom(), 15), duration: 1200 });
   }, [ready, focus]);
 
   // 지도 라이브러리가 컨테이너의 position을 바꾸므로, 크기는 바깥 요소가 잡는다.

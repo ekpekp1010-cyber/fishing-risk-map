@@ -154,7 +154,11 @@ npm run build
 - 타입과 예시 데이터는 `lib/ui/api-types.ts`, `lib/ui/dev-fixtures.ts`에 임시로 두었다. A가 `lib/contract/`를 올리면 그쪽으로 바꾼다. 좌표, 이름, 점수는 모두 예시다.
 - 위험 구역은 포인트 주변의 임시 원이다. `NEXT_PUBLIC_ZONES_PMTILES_URL`을 넣으면 A의 타일을 쓴다.
 - 지형은 공개 지형 타일(AWS의 Mapzen Terrain Tiles)이다. `NEXT_PUBLIC_TERRAIN_TILES_URL`을 넣으면 A의 타일을 쓴다.
-- '경사' 레이어는 지형 음영으로 대신했다. '과거 침수 흔적'과 '위성 영상' 레이어는 타일 주소가 없어 꺼 둔 상태로 보인다.
+- 3D 보기는 지형 고도 위에 실제 항공 사진을 입힌 것이다. 처음에는 밝은 평면 지도를 기울인 것뿐이라 입체감이 없었고, 사용자 요청("구글어스처럼 실제 지형")에 따라 바꿨다.
+  항공 사진은 USGS The National Map의 공개 타일(퍼블릭 도메인, 키 불필요, 미국만 제공, 확대 16단계까지)이다. 지형 높낮이는 1.6배로 과장해 보여 준다(`lib/map/config.ts`의 `VIEW_3D`).
+  다른 나라로 넓히려면 `NEXT_PUBLIC_SATELLITE_TILES_URL`에 다른 타일 주소를 넣어야 한다.
+- 건물과 절벽까지 입체로 보이는 구글어스 수준(사진 측량 3D)은 아니다. 그 수준은 Google Photorealistic 3D Tiles가 필요하고, API 키와 결제 계정, 지도 엔진 교체(CesiumJS 등)가 따른다.
+- '경사' 레이어는 지형 음영으로 대신했다. '과거 침수 흔적' 레이어는 타일 주소가 없어 꺼 둔 상태로 보인다.
 - WebGL을 쓸 수 없는 기기에서는 2D 지도 대신 포인트 목록을 보여 준다. 지도 엔진 자체가 WebGL을 필요로 해서다.
 - deck.gl은 쓰지 않았다. 구역과 핀은 MapLibre만으로 충분했다.
 - 내비게이션은 지도, 추천, 설정 세 개다. '저장'은 MVP 포함 여부가 정해지지 않아 넣지 않았다.
