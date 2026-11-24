@@ -42,7 +42,8 @@ EGRESS_SKIP_M = 45  # 퇴로 최저 고도를 셀 때 포인트 자리(시작 45
 # 30 m 지형에서는 부두 상판·방파제 마루가 물로 잡혀 0 m가 된다. 구조물은 이 고도 아래로 보지 않는다.
 # 뉴포트 공용 부두 상판은 대략 평균해면 +4 m 안팎이다(현장 확인 전 가정값, 신뢰도 낮음으로 표시).
 # 해변은 물가(0 m 부근) 대신 사람이 서는 뒤쪽 모래밭 높이로 본다. 갯벌(하구)은 실제로 잠기므로 기본값이 없다.
-STRUCTURE_MIN_ELEV_M = {"pier": 4.0, "jetty": 4.0, "beach": 2.0}
+# 갯바위(암반 단)도 30 m 지형에서는 물로 잡혀 0 m가 되므로 3 m 아래로 보지 않는다(2026-11-24 게이트 2 준비 때 추가, 가정값).
+STRUCTURE_MIN_ELEV_M = {"pier": 4.0, "jetty": 4.0, "beach": 2.0, "rocks": 3.0}
 
 # ESA WorldCover 분류
 COVER_KO = {10: "숲", 20: "관목", 30: "초지", 40: "농지", 50: "인공 구조물", 60: "나지·암반", 70: "눈·얼음", 80: "물", 90: "습지", 95: "맹그로브", 100: "이끼"}
@@ -117,6 +118,7 @@ class Metrics:
     egress_min_elevation_m: float
     egress_from: str
     land_pixels: int
+    egress_xy: tuple[float, float] | None = None  # 고른 주차장의 UTM 좌표(lidar.py가 퇴로 경로를 볼 때 쓴다)
 
 
 def fetch_rays(g: Grid, x: float, y: float) -> tuple[np.ndarray, np.ndarray]:
@@ -202,8 +204,10 @@ def compute_metrics(g: Grid, x: float, y: float, parkings: list[tuple[float, flo
         path_min = min(mins) if mins else elev
     else:
         dist, path_min, pname = 2000.0, elev, ""
+        px = py = None
 
-    return Metrics(slope_mean, slope_max, elev, water_d, flood, exposure, deg, cover, dist, path_min, pname, int(lr.size))
+    return Metrics(slope_mean, slope_max, elev, water_d, flood, exposure, deg, cover, dist, path_min, pname, int(lr.size),
+                   (px, py) if px is not None else None)
 
 
 def surface_of(spot_type: str, cover: int) -> tuple[float, str]:
@@ -267,7 +271,36 @@ DATA_VINTAGE = {
 }
 
 
-def run(spots: list[DraftSpot], g: Grid, parkings_ll: list[tuple[float, float, str]], osm_date: str) -> list[dict]:
+# 1 m 라이다 고도(lidar.py)를 쓸 수 있는 유형별 범위(평균해면 기준, m). 벗어나면 포인트 위치가
+# 1 m 지형과 어긋난 것으로 보고 30 m 고도·기본값을 그대로 쓴다.
+# 해변·갯벌은 '물러설 곳' 높이라 범위가 더 높다(2026-11-24 변경).
+LIDAR_VALID_RANGE_M = {"jetty": (1.5, 8.0), "beach": (1.5, 8.0), "rocks": (0.0, 10.0), "estuary": (0.5, 8.0)}
+
+
+def lidar_elevation(spot_type: str, rec: dict | None) -> tuple[float | None, str]:
+    """라이다 고도와 사용 여부 설명. (값, 'lidar:<규칙>' | 'lidar_rejected' | 'none')"""
+    if not rec or rec.get("elevation_m") is None or spot_type not in LIDAR_VALID_RANGE_M:
+        return None, "none"
+    lo, hi = LIDAR_VALID_RANGE_M[spot_type]
+    v = float(rec["elevation_m"])
+    if lo <= v <= hi:
+        return v, f"lidar:{rec.get('rule', '')}"
+    return None, "lidar_rejected"
+
+
+def load_lidar() -> dict:
+    path = OUT_DIR / "lidar.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+
+
+def run(
+    spots: list[DraftSpot],
+    g: Grid,
+    parkings_ll: list[tuple[float, float, str]],
+    osm_date: str,
+    lidar: dict | None = None,
+    lidar_prefix: str = "",
+) -> list[dict]:
     to_utm = Transformer.from_crs("EPSG:4326", CRS, always_xy=True)
     parkings = [(*to_utm.transform(lng, lat), name) for lat, lng, name in parkings_ll]
     vintage = {**DATA_VINTAGE, "openstreetmap": osm_date}
@@ -275,8 +308,14 @@ def run(spots: list[DraftSpot], g: Grid, parkings_ll: list[tuple[float, float, s
     for s in spots:
         x, y = to_utm.transform(s.lng, s.lat)
         m = compute_metrics(g, x, y, parkings)
+        lv, elev_source = lidar_elevation(s.type, (lidar or {}).get(lidar_prefix + s.id))
         floor = STRUCTURE_MIN_ELEV_M.get(s.type)
-        if floor is not None and m.elevation_m < floor:
+        if lv is not None:
+            # 라이다가 있으면 기본값 대신 실제 고도를 쓴다. 30 m 퇴로 최저 고도는 물가 칸에서 출발해 0 m가 되므로
+            # 쓰지 않고 같은 높이로 둔다(해변·갯벌은 물러설 곳, 방파제는 마루). 1 m 퇴로 경로는 아직 따라가 보지 않았다.
+            m.elevation_m = lv
+            m.egress_min_elevation_m = lv
+        elif floor is not None and m.elevation_m < floor:
             m.elevation_m = floor
             # 구조물 위를 걷는 구간도 같은 높이로 본다.
             m.egress_min_elevation_m = max(m.egress_min_elevation_m, floor)
@@ -296,7 +335,9 @@ def run(spots: list[DraftSpot], g: Grid, parkings_ll: list[tuple[float, float, s
                 "egress_rise_m": round(max(0.0, m.elevation_m - m.egress_min_elevation_m), 1),
                 "egress_min_elevation_m": round(m.egress_min_elevation_m, 1),
                 "factors": [f.to_dict() for f in v.factors],
-                "confidence": confidence_of(s, m),
+                "confidence": "medium" if lv is not None else confidence_of(s, m),
+                "refuge_distance_m": ((lidar or {}).get(lidar_prefix + s.id) or {}).get("refuge_distance_m") if lv is not None else None,
+                "elevation_source": elev_source if lv is not None or elev_source == "lidar_rejected" else ("floor" if floor is not None and m.elevation_m == floor else "copernicus30"),
                 "data_vintage": vintage,
                 "access_walk_minutes": walk_minutes(m.egress_distance_m),
                 "access_from": m.egress_from or "가까운 주차장",
@@ -318,7 +359,7 @@ def main(argv: list[str]) -> int:
     raw = json.loads((OUT_DIR / "osm_raw.json").read_text(encoding="utf-8"))
     osm_date = raw.get("osm3s", {}).get("timestamp_osm_base", "")[:10]
     spots = [s for s in read_review() if s.keep.strip().lower() == "yes"]
-    rows = run(spots, load_grid(), parkings_from_osm(raw), osm_date)
+    rows = run(spots, load_grid(), parkings_from_osm(raw), osm_date, load_lidar())
     path = OUT_DIR / "terrain_scores.json"
     path.write_text(json.dumps(rows, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"{len(rows)}곳 계산 → {path.relative_to(OUT_DIR.parent)}")

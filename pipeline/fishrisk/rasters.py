@@ -104,6 +104,33 @@ def download(src: Source) -> Path:
     return path
 
 
+def grid_spec_around(lat: float, lng: float, radius_m: float, west_m: float, res: float = GRID_RESOLUTION_M):
+    """한 지점 둘레 격자. 파랑 노출을 재도록 서쪽(바다 쪽)은 west_m만큼 더 넓힌다."""
+    from pyproj import Transformer
+
+    x, y = Transformer.from_crs("EPSG:4326", CRS, always_xy=True).transform(lng, lat)
+    w = np.floor((x - max(radius_m, west_m)) / res) * res
+    e = np.ceil((x + radius_m) / res) * res
+    s = np.floor((y - radius_m) / res) * res
+    n = np.ceil((y + radius_m) / res) * res
+    return from_origin(w, n, res, res), int((e - w) / res), int((n - s) / res)
+
+
+def warp_array(src_path: Path, src: Source, transform, width: int, height: int) -> np.ndarray:
+    dst = np.full((height, width), src.nodata, dtype=src.dtype)
+    with rasterio.open(src_path) as ds:
+        reproject(
+            source=rasterio.band(ds, 1),
+            destination=dst,
+            src_nodata=ds.nodata,
+            dst_transform=transform,
+            dst_crs=CRS,
+            dst_nodata=src.nodata,
+            resampling=src.resampling,
+        )
+    return dst
+
+
 def warp_to_grid(src_path: Path, src: Source, out_path: Path) -> None:
     transform, width, height = grid_spec()
     dst = np.full((height, width), src.nodata, dtype=src.dtype)
