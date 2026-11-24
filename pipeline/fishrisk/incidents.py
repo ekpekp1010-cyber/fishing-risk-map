@@ -20,7 +20,7 @@ from .config import BBox
 from .osm import OUT_DIR, fetch, parse
 from .rasters import RAW, SOURCES, grid_spec_around, warp_array
 from .spots import DraftSpot
-from .terrain import Grid, run
+from .terrain import Grid, load_lidar, run
 
 ROOT = Path(__file__).resolve().parents[1]
 INCIDENTS = ROOT / "validation" / "incidents.csv"
@@ -101,7 +101,7 @@ def main(argv: list[str]) -> int:
         spot = DraftSpot(inc["id"], inc["place"], inc["type"], lat, lng, "", "")
         parks = parkings_near(inc["id"], lat, lng)
         # 주차장 조회가 끝내 실패하면 빈 목록 → 퇴로 거리 2 km(가장 위험한 쪽)로 계산된다.
-        [t] = run([spot], g, parks or [], "incident")
+        [t] = run([spot], g, parks or [], "incident", load_lidar(), lidar_prefix="incident-")
         rows.append({**t, "incident": inc, "snapped": {"lat": lat, "lng": lng, "moved_m": moved},
                      "parking_lookup": "ok" if parks is not None else "failed"})
         top = ", ".join(f"{f['code']} {f['score']}" for f in t["factors"][:3])

@@ -16,6 +16,7 @@ pytest pipeline/tests
 | 2 | `python -m fishrisk.spots` | `review/spots_draft.csv` (포인트 초안, 사람이 검수) |
 | 3 | `python -m fishrisk.rasters` | `data/grid/*.tif` (DEM·피복·물 출현 빈도·계절성, 30 m UTM 10N) |
 | 4 | `python -m fishrisk.terrain` | `out/terrain_scores.json` (지표 7개, V, 도보 시간) |
+| 4-1 | `python -m fishrisk.lidar` (선택) | `data/lidar/*.tif`, `out/lidar.json` — 있으면 4를 다시 돌릴 때 1 m 고도를 쓴다 |
 | 5 | `python -m fishrisk.tiles` | `out/tiles/zones.geojson`, `zones.pmtiles`, `terrain/{z}/{x}/{y}.png` |
 | 6 | `python -m fishrisk.load_db` | Supabase `spots`, `terrain_scores`, `zones` 적재(`.env.local` 필요) |
 | 7 | `python -m fishrisk.upload_tiles` | Storage 공개 버킷 `tiles`에 올리고 화면용 주소 출력 |
