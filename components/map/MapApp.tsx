@@ -1,11 +1,15 @@
 'use client';
 
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import MapControls from './MapControls';
 import MapView, { type MapFocus, type MapMove } from './MapView';
 import SearchFilters from './SearchFilters';
 import TimeSlider from './TimeSlider';
+import NavLinks, { tabOf, type AppTab } from '@/components/shell/NavLinks';
+import SettingsPanel from '@/components/shell/SettingsPanel';
 import RecommendList from '@/components/spot/RecommendList';
+import RecommendPage from '@/components/spot/RecommendPage';
 import { GradeIcon } from '@/components/spot/RiskBadge';
 import SpotSheet from '@/components/spot/SpotSheet';
 import { retry, USE_FIXTURES, useApi, useLastReady, useRegionAlerts, type ApiRequest } from '@/lib/hooks/api';
@@ -29,6 +33,9 @@ const FIXTURE_ZONES = USE_FIXTURES ? fixtureZonesGeoJson() : null;
 
 type SheetSize = 'collapsed' | 'half' | 'full';
 const NEXT_SHEET: Record<SheetSize, SheetSize> = { collapsed: 'half', half: 'full', full: 'collapsed' };
+/** 좁은 화면에서 탭을 열었을 때의 시트 높이. 지도 탭은 지도가, 나머지는 내용이 먼저 보여야 한다. */
+const TAB_SHEET: Record<AppTab, SheetSize> = { map: 'collapsed', recommend: 'half', settings: 'full' };
+const PANEL_LABEL: Record<Exclude<AppTab, 'map'>, string> = { recommend: '추천', settings: '설정과 출처' };
 
 function detectWebGL(): boolean {
   try {
@@ -54,14 +61,23 @@ function readBoot() {
   };
 }
 
+/** 지도와 그 위의 패널. 패널의 탭(지도·추천·설정)은 주소로 정해진다. */
 export default function MapApp() {
+  const router = useRouter();
+  const tab = tabOf(usePathname());
   const [boot] = useState(readBoot);
   const [baseTime] = useState(() => floorToHourIso(new Date()));
   const [index, setIndex] = useState(boot.index);
   const [playing, setPlaying] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(boot.spot);
   const [panel, setPanel] = useState<'detail' | 'alternatives'>('detail');
-  const [sheet, setSheet] = useState<SheetSize>(boot.spot ? 'half' : 'collapsed');
+  const [sheet, setSheet] = useState<SheetSize>(boot.spot && tab === 'map' ? 'half' : TAB_SHEET[tab]);
+  // 탭이 바뀌면 시트 높이를 그 탭에 맞춘다(넓은 화면의 패널은 높이가 고정이라 영향이 없다).
+  const [shownTab, setShownTab] = useState(tab);
+  if (shownTab !== tab) {
+    setShownTab(tab);
+    setSheet(tab === 'map' && selectedId ? 'half' : TAB_SHEET[tab]);
+  }
   const [query, setQuery] = useState('');
   const [types, setTypes] = useState<SpotType[]>([]);
   const [safeOnly, setSafeOnly] = useState(false);
@@ -143,6 +159,8 @@ export default function MapApp() {
     setSheet((s) => (s === 'collapsed' ? 'half' : s));
     const point = at ?? allSpots.find((s) => s.id === id);
     if (point) flyTo(point.lng, point.lat);
+    // 포인트 상세는 지도 탭에 있다. 다른 탭에서 핀이나 목록을 눌렀으면 그리로 옮긴다.
+    if (tab !== 'map') router.push('/');
   };
 
   const closeSpot = () => {
@@ -300,7 +318,8 @@ export default function MapApp() {
         </div>
       </div>
 
-      <aside className="sheet" aria-label={selectedId ? '포인트 상세' : '추천 포인트'}>
+      {/* 지도 위에 뜬 패널 하나에 메뉴와 내용이 함께 들어간다. 좁은 화면에서는 아래에서 올라오는 시트가 된다. */}
+      <aside className="sheet" aria-label={tab === 'map' ? (selectedId ? '포인트 상세' : '추천 포인트') : PANEL_LABEL[tab]}>
         <button
           type="button"
           className="sheet__handle"
@@ -309,45 +328,58 @@ export default function MapApp() {
         >
           <span />
         </button>
-        {selectedId && panel === 'detail' && (
-          <SpotSheet
-            key={selectedId}
-            spotId={selectedId}
-            baseTime={baseTime}
-            index={index}
-            hours={HOURS_AHEAD}
-            onIndexChange={(i) => {
-              setPlaying(false);
-              setIndex(i);
-            }}
-            onClose={closeSpot}
-            onRecommend={() => setPanel('alternatives')}
-          />
-        )}
-        {selectedId && panel === 'alternatives' && (
-          <RecommendList
-            title="더 안전한 곳"
-            lead="같은 시간대에 지금 포인트보다 위험 점수가 낮은 곳입니다."
-            time={queryTime}
-            baseTime={baseTime}
-            center={recommendCenter}
-            alert={alert}
-            excludeSpotId={selectedId}
-            onPick={(item) => selectSpot(item.id, item)}
-            onBack={() => setPanel('detail')}
-          />
-        )}
-        {!selectedId && (
-          <RecommendList
-            title="추천 포인트"
-            lead="선택한 시간대에 위험이 낮고 접근이 쉬운 곳입니다."
-            time={queryTime}
-            baseTime={baseTime}
-            center={recommendCenter}
-            alert={alert}
-            onPick={(item) => selectSpot(item.id, item)}
-          />
-        )}
+        <NavLinks />
+        <div className="sheet__content">
+          {tab === 'settings' && <SettingsPanel />}
+          {tab === 'recommend' && (
+            <RecommendPage
+              time={queryTime}
+              baseTime={baseTime}
+              center={recommendCenter}
+              alert={alert}
+              onPick={(s) => selectSpot(s.id, s)}
+            />
+          )}
+          {tab === 'map' && selectedId && panel === 'detail' && (
+            <SpotSheet
+              key={selectedId}
+              spotId={selectedId}
+              baseTime={baseTime}
+              index={index}
+              hours={HOURS_AHEAD}
+              onIndexChange={(i) => {
+                setPlaying(false);
+                setIndex(i);
+              }}
+              onClose={closeSpot}
+              onRecommend={() => setPanel('alternatives')}
+            />
+          )}
+          {tab === 'map' && selectedId && panel === 'alternatives' && (
+            <RecommendList
+              title="더 안전한 곳"
+              lead="같은 시간대에 지금 포인트보다 위험 점수가 낮은 곳입니다."
+              time={queryTime}
+              baseTime={baseTime}
+              center={recommendCenter}
+              alert={alert}
+              excludeSpotId={selectedId}
+              onPick={(item) => selectSpot(item.id, item)}
+              onBack={() => setPanel('detail')}
+            />
+          )}
+          {tab === 'map' && !selectedId && (
+            <RecommendList
+              title="추천 포인트"
+              lead="선택한 시간대에 위험이 낮고 접근이 쉬운 곳입니다."
+              time={queryTime}
+              baseTime={baseTime}
+              center={recommendCenter}
+              alert={alert}
+              onPick={(item) => selectSpot(item.id, item)}
+            />
+          )}
+        </div>
       </aside>
 
       {snack && (

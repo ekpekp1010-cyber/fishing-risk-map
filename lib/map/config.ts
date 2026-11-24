@@ -14,6 +14,12 @@ const env = (v: string | undefined) => (v && v.length > 0 ? v : null);
 const terrainUrl = env(process.env.NEXT_PUBLIC_TERRAIN_TILES_URL);
 const satelliteUrl = env(process.env.NEXT_PUBLIC_SATELLITE_TILES_URL);
 
+/**
+ * 넓은 화면에서 지도 왼쪽을 덮는 패널의 폭(여백 포함, px). styles/app.css의 --inset-left와 같은 값이다.
+ * 지도가 이만큼을 뺀 나머지의 가운데를 중심으로 삼아, 고른 포인트가 패널 뒤로 숨지 않는다.
+ */
+export const PANEL = { minWidth: 840, inset: 384 };
+
 /** 3D 보기의 카메라와 지형 강조. 해안이 낮은 지형이라 높낮이를 조금 과장해 보여 준다. */
 export const VIEW_3D = { pitch: 68, bearing: -24, exaggeration: 1.6 };
 
