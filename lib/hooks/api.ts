@@ -8,6 +8,7 @@ import { useEffect, useSyncExternalStore } from 'react';
 import type {
   ApiErrorCode,
   RecommendationsResponse,
+  RiskAlert,
   SpotRiskResponse,
   SpotsResponse,
   ZoneGradesResponse,
@@ -201,6 +202,20 @@ export function useLastReady<K extends ApiRequest['kind']>(kind: K): ResponseMap
     () => undefined,
   );
   return (value as ResponseMap[K] | undefined) ?? null;
+}
+
+const NO_ALERTS: RiskAlert[] = [];
+
+/**
+ * 그 시각에 지역에 발효 중인 공식 경보.
+ * 경보는 지역 단위라 어느 포인트의 상세 응답에나 같은 목록이 들어 있다. 포인트 목록 응답에는 경보가 없어서
+ * 대표 포인트 하나의 상세에서 읽는다. 상세 시트와 같은 요청이라 캐시를 함께 쓴다(계약 문서 "요청" 참고).
+ */
+export function useRegionAlerts(spotId: string | null, from: string, hours: number, at: string): RiskAlert[] {
+  const res = useApi<'spotRisk'>(spotId ? { kind: 'spotRisk', id: spotId, from, hours } : null);
+  if (res.status !== 'ready') return NO_ALERTS;
+  const t = Date.parse(at);
+  return res.data.alerts.filter((a) => Date.parse(a.expires) > t);
 }
 
 export function retry(req: ApiRequest) {

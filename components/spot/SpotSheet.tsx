@@ -161,6 +161,10 @@ export default function SpotSheet({ spotId, baseTime, index, hours, onIndexChang
         예보 수집 {formatPlaceTime(forecastFetchedAt, baseTime)} · 신뢰도 {CONFIDENCE_LABEL[confidence]}
         {stale && <span className="tag tag--warn">데이터 지연</span>}
       </p>
+      <p className="meta">
+        위 수치는 이 포인트의 시간별 예보입니다. 지도 위 &lsquo;일대 실시간&rsquo; 값은 약 30 km 간격 격자의 현재 값이라 서로 다를 수
+        있습니다.
+      </p>
 
       <div className="sheet-actions">
         <button type="button" className="btn btn--filled" onClick={onRecommend}>
