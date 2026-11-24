@@ -15,8 +15,9 @@ import SpotSheet from '@/components/spot/SpotSheet';
 import SpotList from '@/components/spot/SpotList';
 import { retry, USE_FIXTURES, useApi, useLastReady, useRegionAlerts, type ApiRequest } from '@/lib/hooks/api';
 import { DEFAULT_LAYERS, LIVE, PILOT, inPilotBbox, type LayerState } from '@/lib/map/config';
-import { liveSummary, loadLiveGrid, TEMP_STOPS, WAVE_STOPS, type LiveGrid } from '@/lib/map/live';
+import { liveSummary, loadLiveGrid, sampleGrid, TEMP_STOPS, WAVE_STOPS, type LiveGrid } from '@/lib/map/live';
 import { loadCurrentForecast, type CurrentForecast } from '@/lib/map/currents';
+import { loadTempForecast, type TempForecast } from '@/lib/map/temperature';
 import type { Grade, SpotSummary, SpotType } from '@/lib/contract/types';
 import { fixtureZonesGeoJson } from '@/lib/ui/dev-fixtures';
 import { GRADE_LABEL, SAFETY_NOTICE } from '@/lib/ui/labels';
@@ -93,6 +94,8 @@ export default function MapApp() {
   const [liveGrid, setLiveGrid] = useState<LiveGrid | null>(null);
   const [currentForecast, setCurrentForecast] = useState<CurrentForecast | null>(null);
   const [currentFailed, setCurrentFailed] = useState(false);
+  const [tempForecast, setTempForecast] = useState<TempForecast | null>(null);
+  const [tempFailed, setTempFailed] = useState(false);
   const [snack, setSnack] = useState<string | null>(
     boot.webgl ? null : '이 기기에서는 3D 지도를 쓸 수 없어 목록으로 보여 드립니다.',
   );
@@ -109,6 +112,21 @@ export default function MapApp() {
     );
     return () => controller.abort();
   }, [baseTime, layers.currents, currentForecast, currentFailed]);
+
+  // 기온은 시간 막대에 맞춘다. 72시간 치를 한 번에 받아 두고, 막대를 움직이면 그 시각의 격자를 꺼내 쓴다.
+  useEffect(() => {
+    if (!boot.webgl || !layers.temp || tempForecast || tempFailed) return;
+    const controller = new AbortController();
+    loadTempForecast(baseTime, controller.signal).then(
+      (forecast) => {
+        if (!controller.signal.aborted) setTempForecast(forecast);
+      },
+      () => {
+        if (!controller.signal.aborted) setTempFailed(true);
+      },
+    );
+    return () => controller.abort();
+  }, [boot.webgl, baseTime, layers.temp, tempForecast, tempFailed]);
 
   // 슬라이더를 끄는 동안 요청이 몰리지 않게 조금 늦춰서 불러온다.
   const [queryTime, setQueryTime] = useState(time);
@@ -221,6 +239,15 @@ export default function MapApp() {
 
   const live = liveGrid && needsLive ? liveSummary(liveGrid, PILOT.center[0], PILOT.center[1]) : null;
 
+  const tempHour = layers.temp ? tempForecast?.get(Date.parse(time) / 1000) : undefined;
+  // 예보를 아직 못 받았으면, 막대가 지금 시각일 때에 한해 실시간 값으로 대신 그린다. 다른 시각에는 그리지 않는다.
+  const tempField = tempHour ?? (layers.temp && !tempForecast && index === 0 ? liveGrid : null);
+  const tempFeels = tempHour
+    ? sampleGrid(tempHour, tempHour.feels, PILOT.center[0], PILOT.center[1])
+    : tempField
+      ? (live?.feelsLike ?? null)
+      : null;
+
   const recommendCenter = center.inside ? center : { lng: PILOT.center[0], lat: PILOT.center[1] };
 
   return (
@@ -238,6 +265,7 @@ export default function MapApp() {
             focus={focus}
             onMove={handleMove}
             liveGrid={liveGrid}
+            tempField={tempField}
             currents={currents}
           />
         ) : (
@@ -288,10 +316,22 @@ export default function MapApp() {
           )}
           {layers.temp && (
             <p className="wave-legend">
-              기온
+              기온 · {formatPlaceTime(time, baseTime)}
               <span className="wave-legend__bar" style={{ background: TEMP_GRADIENT }} aria-hidden="true" />
               {TEMP_MIN} ~ {TEMP_MAX}°C
-              {live?.feelsLike != null && ` · 체감 ${Math.round(live.feelsLike)}°C`}
+              {tempFeels !== null && ` · 체감 ${Math.round(tempFeels)}°C`}
+              {tempFailed ? (
+                <>
+                  {' · 예보 연결 실패 '}
+                  <button type="button" onClick={() => setTempFailed(false)}>
+                    다시 시도
+                  </button>
+                </>
+              ) : !tempForecast ? (
+                ' · 예보를 불러오는 중…'
+              ) : (
+                !tempHour && ' · 이 시각의 예보가 없습니다'
+              )}
             </p>
           )}
           {layers.currents && (

@@ -8,7 +8,7 @@ import type { FeatureCollection } from 'geojson';
 import { ZONES_LAYER, type Grade, type SpotSummary } from '@/lib/contract/types';
 import { GRADE_LABEL, TYPE_LABEL } from '@/lib/ui/labels';
 import { GRADE_COLOR, LIVE, MAP_CONFIG, PANEL, PILOT, VIEW_3D, type LayerState } from '@/lib/map/config';
-import { startWindParticles, tempImage, tempLabels, waveImage, type LiveGrid } from '@/lib/map/live';
+import { startWindParticles, tempImage, tempLabels, waveImage, type LiveGrid, type TempField } from '@/lib/map/live';
 import { gradeShapeSvg } from '@/lib/map/pins';
 import type { OceanCurrent } from '@/lib/map/currents';
 import { createCurrentField, startCurrentParticles } from '@/lib/map/current-flow';
@@ -40,6 +40,8 @@ interface Props {
   onMove: (move: MapMove) => void;
   /** 실시간 바람·파고 격자. 아직 못 받았으면 null */
   liveGrid: LiveGrid | null;
+  /** 시간 막대의 시각에 해당하는 기온 격자. 그 시각의 값이 없으면 null이고 기온 그림을 숨긴다 */
+  tempField: TempField | null;
   currents?: OceanCurrent[];
 }
 
@@ -63,6 +65,7 @@ export default function MapView({
   focus,
   onMove,
   liveGrid,
+  tempField,
   currents,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -310,8 +313,7 @@ export default function MapView({
     set('clouds', layers.clouds);
     set('radar', layers.radar);
     set('waves', layers.waves);
-    set('temp', layers.temp);
-    set('temp-labels', layers.temp);
+    // 기온은 아래의 기온 효과가 맡는다. 그 시각의 값이 없을 때는 켜져 있어도 숨겨야 하기 때문이다.
   }, [ready, layers]);
 
   // 실시간 파고: 칸의 경계 없이 부드러운 색 그라데이션으로 그린다
@@ -338,13 +340,21 @@ export default function MapView({
     map.setLayoutProperty('waves', 'visibility', layers.waves ? 'visible' : 'none');
   }, [ready, liveGrid, layers.waves]);
 
-  // 실시간 기온: 파고와 같은 방식의 색 그라데이션에, 격자 지점마다 숫자를 적는다
+  // 기온: 파고와 같은 방식의 색 그라데이션에, 격자 지점마다 숫자를 적는다. 시간 막대를 움직이면 그 시각의 값으로 다시 그린다
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !ready || !liveGrid) return;
-    const image = tempImage(liveGrid);
-    if (!image) return;
-    const labels = tempLabels(liveGrid);
+    if (!map || !ready) return;
+    const show = (on: boolean) => {
+      for (const id of ['temp', 'temp-labels']) {
+        if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none');
+      }
+    };
+    const image = tempField && layers.temp ? tempImage(tempField) : null;
+    if (!tempField || !image) {
+      show(false);
+      return;
+    }
+    const labels = tempLabels(tempField);
     const source = map.getSource('temp') as maplibregl.ImageSource | undefined;
     if (source) {
       source.updateImage(image);
@@ -372,10 +382,8 @@ export default function MapView({
         paint: { 'text-color': '#ffffff', 'text-halo-color': 'rgba(0, 0, 0, 0.75)', 'text-halo-width': 1.6 },
       });
     }
-    const visibility = layers.temp ? 'visible' : 'none';
-    map.setLayoutProperty('temp', 'visibility', visibility);
-    map.setLayoutProperty('temp-labels', 'visibility', visibility);
-  }, [ready, liveGrid, layers.temp]);
+    show(true);
+  }, [ready, tempField, layers.temp]);
 
   // 실시간 바람: 흐르는 입자. 움직임을 줄이도록 설정한 사용자에게는 그리지 않는다.
   useEffect(() => {

@@ -1,4 +1,5 @@
 // 실시간 레이어용 데이터: 바람, 파고, 기온의 현재 값을 격자로 받아, 바람은 흐르는 입자로 파고와 기온은 색으로 그린다.
+// 기온 그림은 시간 막대에 맞춘 시간별 예보(temperature.ts)도 같은 함수로 그린다.
 // 출처는 Open-Meteo(키 불필요, 무료 사용은 비상업 용도). 브라우저에서 직접 부르며 15분 동안 다시 부르지 않는다.
 // 운영 단계에서는 개발자 A의 서버가 모아 둔 값을 받도록 바꾼다(docs/api-contract.md 요청 참고).
 
@@ -32,10 +33,17 @@ const range = (from: number, to: number, step: number) => {
   return out;
 };
 
-async function fetchGrid(): Promise<LiveGrid> {
+/** 기온 그림을 그리는 데 필요한 것. 실시간 격자와 시간별 예보(temperature.ts)가 함께 쓴다. */
+export type TempField = Pick<LiveGrid, 'lngs' | 'lats' | 'temp'>;
+
+/** 격자 지점의 경도·위도 축. 시간별 기온 예보도 같은 지점을 요청한다. */
+export function liveAxes(): Pick<LiveGrid, 'lngs' | 'lats'> {
   const { west, south, east, north, step } = LIVE.region;
-  const lngs = range(west, east, step);
-  const lats = range(south, north, step);
+  return { lngs: range(west, east, step), lats: range(south, north, step) };
+}
+
+async function fetchGrid(): Promise<LiveGrid> {
+  const { lngs, lats } = liveAxes();
   const points = lats.flatMap((lat) => lngs.map((lng) => ({ lat, lng })));
   const query = `latitude=${points.map((p) => p.lat).join(',')}&longitude=${points.map((p) => p.lng).join(',')}`;
 
@@ -91,7 +99,7 @@ export function loadLiveGrid(): Promise<LiveGrid> {
 }
 
 /** 격자 사이를 부드럽게 잇는 함수를 돌려준다. 지점이 범위 밖이면 null. */
-function mixerAt(grid: LiveGrid, lng: number, lat: number): ((g: number[][]) => number) | null {
+function mixerAt(grid: Pick<LiveGrid, 'lngs' | 'lats'>, lng: number, lat: number): ((g: number[][]) => number) | null {
   const { lngs, lats } = grid;
   const fx = (lng - lngs[0]) / (lngs[1] - lngs[0]);
   const fy = (lat - lats[0]) / (lats[1] - lats[0]);
@@ -111,6 +119,12 @@ export function sampleWind(grid: LiveGrid, lng: number, lat: number): { u: numbe
   const u = mix(grid.u);
   const v = mix(grid.v);
   return { u, v, speed: Math.hypot(u, v) };
+}
+
+/** 격자 사이를 부드럽게 이어 한 지점의 값을 구한다. 범위 밖이면 null. */
+export function sampleGrid(axes: Pick<LiveGrid, 'lngs' | 'lats'>, values: number[][], lng: number, lat: number): number | null {
+  const mix = mixerAt(axes, lng, lat);
+  return mix ? mix(values) : null;
 }
 
 /** 한 지점의 요약: 풍속, 기온, 체감 온도와 가장 가까운 바다 칸의 파고. */
@@ -224,7 +238,7 @@ export function waveImage(grid: LiveGrid): { url: string; coordinates: ImageCorn
  * 기온을 경계선 없는 색 그라데이션으로 그리기 위한 그림. 육지와 바다를 모두 칠한다.
  * 받아 온 범위의 가장자리에서는 옅어지게 해서, 넓게 봤을 때 네모난 경계가 보이지 않게 한다.
  */
-export function tempImage(grid: LiveGrid): { url: string; coordinates: ImageCorners } | null {
+export function tempImage(grid: TempField): { url: string; coordinates: ImageCorners } | null {
   const SCALE = 8;
   const cols = grid.lngs.length;
   const rows = grid.lats.length;
@@ -270,7 +284,7 @@ export function tempImage(grid: LiveGrid): { url: string; coordinates: ImageCorn
 }
 
 /** 격자 지점마다 기온 숫자를 적기 위한 점들. 가장자리 줄은 색이 옅어지는 곳이라 뺀다. */
-export function tempLabels(grid: LiveGrid) {
+export function tempLabels(grid: TempField) {
   const features = [];
   for (let r = 1; r < grid.lats.length - 1; r++) {
     for (let c = 1; c < grid.lngs.length - 1; c++) {

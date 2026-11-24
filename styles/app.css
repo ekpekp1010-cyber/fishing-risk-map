@@ -191,7 +191,8 @@
   box-shadow: var(--md-elevation-1);
   font: var(--md-label-medium);
 }
-.current-legend button {
+.current-legend button,
+.wave-legend button {
   border: 0;
   background: transparent;
   color: var(--md-primary);
