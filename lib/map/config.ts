@@ -57,6 +57,37 @@ export interface LayerState {
   relief: boolean;
   flood: boolean;
   satellite: boolean;
+  /** 아래 넷은 실시간 레이어 */
+  wind: boolean;
+  waves: boolean;
+  radar: boolean;
+  clouds: boolean;
 }
 
-export const DEFAULT_LAYERS: LayerState = { zones: true, relief: false, flood: false, satellite: true };
+export const DEFAULT_LAYERS: LayerState = {
+  zones: true,
+  relief: false,
+  flood: false,
+  satellite: true,
+  wind: true,
+  waves: false,
+  radar: false,
+  clouds: false,
+};
+
+/**
+ * 실시간 레이어의 데이터 출처. 모두 키 없이 쓸 수 있는 공개 데이터다.
+ * - 구름: NASA GIBS의 정지궤도 위성 GOES-West 영상(약 10분 간격, 확대 7단계까지)
+ * - 레이더: 미국 NEXRAD 강수 레이더 합성(아이오와 주립대 IEM 제공, 미국만)
+ * - 바람·파고: Open-Meteo의 현재 값(무료 사용은 비상업 용도)
+ */
+export const LIVE = {
+  cloudsTiles:
+    'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GOES-West_ABI_GeoColor/default/default/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png',
+  cloudsMaxZoom: 7,
+  radarTiles: 'https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png',
+  /** 바람·파고 격자를 받는 범위. 시범 지역을 가운데 둔 오리건 해안 일대다. */
+  region: { west: -125.4, south: 43.8, east: -123.6, north: 45.6, step: 0.3 },
+  /** 구름·레이더·파고를 켤 때 물러나는 확대 단계. 이 레이어들은 넓게 봐야 보인다. */
+  regionalZoom: 8.3,
+};

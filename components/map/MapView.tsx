@@ -7,7 +7,8 @@ import { Protocol } from 'pmtiles';
 import type { FeatureCollection } from 'geojson';
 import { ZONES_LAYER, type Grade, type SpotSummary } from '@/lib/contract/types';
 import { GRADE_LABEL, TYPE_LABEL } from '@/lib/ui/labels';
-import { GRADE_COLOR, MAP_CONFIG, PILOT, VIEW_3D, inPilotBbox, type LayerState } from '@/lib/map/config';
+import { GRADE_COLOR, LIVE, MAP_CONFIG, PILOT, VIEW_3D, type LayerState } from '@/lib/map/config';
+import { startWindParticles, WAVE_STOPS, waveCells, type LiveGrid } from '@/lib/map/live';
 import { gradeShapeSvg } from '@/lib/map/pins';
 
 export interface MapFocus {
@@ -15,6 +16,8 @@ export interface MapFocus {
   lat: number;
   /** 같은 좌표로 다시 이동할 수 있게 매번 바뀌는 값 */
   key: number;
+  /** 주면 그 확대 단계로 물러난다(넓게 봐야 하는 실시간 레이어용). 없으면 가까이 다가간다. */
+  zoom?: number;
 }
 
 export interface MapMove {
@@ -33,6 +36,8 @@ interface Props {
   mode: '2d' | '3d';
   focus: MapFocus | null;
   onMove: (move: MapMove) => void;
+  /** 실시간 바람·파고 격자. 아직 못 받았으면 null */
+  liveGrid: LiveGrid | null;
 }
 
 interface PinEntry {
@@ -45,7 +50,18 @@ const NEUTRAL = '#79747E';
 const GRADES: Grade[] = ['safe', 'caution', 'danger'];
 let protocolAdded = false;
 
-export default function MapView({ spots, selectedId, onSelect, zoneGrades, zonesGeoJson, layers, mode, focus, onMove }: Props) {
+export default function MapView({
+  spots,
+  selectedId,
+  onSelect,
+  zoneGrades,
+  zonesGeoJson,
+  layers,
+  mode,
+  focus,
+  onMove,
+  liveGrid,
+}: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const pinsRef = useRef(new Map<string, PinEntry>());
@@ -112,6 +128,42 @@ export default function MapView({ spots, selectedId, onSelect, zoneGrades, zones
         { id: 'satellite', type: 'raster', source: 'satellite', layout: { visibility: 'none' } },
         firstLabelLayer,
       );
+      // 실시간 레이어: 위성 구름 영상, 강수 레이더, 파고. 처음에는 숨겨 두고 레이어 메뉴로 켠다.
+      map.addSource('clouds', {
+        type: 'raster',
+        tiles: [LIVE.cloudsTiles],
+        tileSize: 256,
+        maxzoom: LIVE.cloudsMaxZoom,
+        attribution: 'NASA GIBS / NOAA GOES-West',
+      });
+      map.addLayer(
+        { id: 'clouds', type: 'raster', source: 'clouds', layout: { visibility: 'none' }, paint: { 'raster-opacity': 0.85 } },
+        firstLabelLayer,
+      );
+      map.addSource('waves', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      map.addLayer(
+        {
+          id: 'waves',
+          type: 'fill',
+          source: 'waves',
+          layout: { visibility: 'none' },
+          paint: {
+            'fill-color': ['interpolate', ['linear'], ['get', 'h'], ...WAVE_STOPS.flat()] as unknown as maplibregl.ExpressionSpecification,
+            'fill-opacity': 0.55,
+          },
+        },
+        firstLabelLayer,
+      );
+      map.addSource('radar', {
+        type: 'raster',
+        tiles: [LIVE.radarTiles],
+        tileSize: 256,
+        attribution: 'NEXRAD via Iowa Environmental Mesonet',
+      });
+      map.addLayer(
+        { id: 'radar', type: 'raster', source: 'radar', layout: { visibility: 'none' }, paint: { 'raster-opacity': 0.75 } },
+        firstLabelLayer,
+      );
       // 하늘과 먼 곳의 안개. 기울여 볼 때 지평선이 자연스럽게 보인다.
       map.setSky({
         'sky-color': '#7fb2e5',
@@ -169,7 +221,11 @@ export default function MapView({ spots, selectedId, onSelect, zoneGrades, zones
 
     map.on('moveend', () => {
       const c = map.getCenter();
-      onMoveRef.current({ lng: c.lng, lat: c.lat, inside: inPilotBbox(c.lng, c.lat) });
+      // 화면에 시범 지역이 조금이라도 걸쳐 있으면 지원 범위 안으로 본다. 넓게 물러난 화면에서도 안내가 뜨지 않게 한다.
+      const b = map.getBounds();
+      const [west, south, east, north] = PILOT.bbox;
+      const inside = b.getWest() <= east && b.getEast() >= west && b.getSouth() <= north && b.getNorth() >= south;
+      onMoveRef.current({ lng: c.lng, lat: c.lat, inside });
     });
 
     const pins = pinsRef.current;
@@ -201,7 +257,25 @@ export default function MapView({ spots, selectedId, onSelect, zoneGrades, zones
     set('relief', layers.relief);
     set('flood', layers.flood);
     set('satellite', layers.satellite);
+    set('clouds', layers.clouds);
+    set('radar', layers.radar);
+    set('waves', layers.waves);
   }, [ready, layers]);
+
+  // 실시간 파고: 격자를 색 칸으로 그린다
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready || !liveGrid) return;
+    (map.getSource('waves') as maplibregl.GeoJSONSource | undefined)?.setData(waveCells(liveGrid));
+  }, [ready, liveGrid]);
+
+  // 실시간 바람: 흐르는 입자. 움직임을 줄이도록 설정한 사용자에게는 그리지 않는다.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready || !liveGrid || !layers.wind) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    return startWindParticles(map, liveGrid);
+  }, [ready, liveGrid, layers.wind]);
 
   // 임시 구역 도형 (PMTiles가 없을 때)
   useEffect(() => {
@@ -270,7 +344,11 @@ export default function MapView({ spots, selectedId, onSelect, zoneGrades, zones
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready || !focus) return;
-    map.flyTo({ center: [focus.lng, focus.lat], zoom: Math.max(map.getZoom(), 15), duration: 1200 });
+    if (focus.zoom !== undefined) {
+      map.flyTo({ center: [focus.lng, focus.lat], zoom: focus.zoom, pitch: 35, duration: 1400 });
+    } else {
+      map.flyTo({ center: [focus.lng, focus.lat], zoom: Math.max(map.getZoom(), 15), pitch: VIEW_3D.pitch, duration: 1200 });
+    }
   }, [ready, focus]);
 
   // 지도 라이브러리가 컨테이너의 position을 바꾸므로, 크기는 바깥 요소가 잡는다.

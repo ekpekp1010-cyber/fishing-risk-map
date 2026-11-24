@@ -14,6 +14,8 @@ const SOURCES: Array<{ name: string; use: string; href: string; credit: string }
   { name: 'NOAA CO-OPS · NWS', use: '실측 수위, 기상 경보', href: 'https://tidesandcurrents.noaa.gov/', credit: 'NOAA / National Weather Service' },
   { name: 'OpenStreetMap', use: '배경 지도, 접근로', href: 'https://www.openstreetmap.org/copyright', credit: '© OpenStreetMap contributors' },
   { name: 'USGS The National Map', use: '지형 위에 입히는 항공 사진(미국)', href: 'https://www.usgs.gov/programs/national-geospatial-program/national-map', credit: 'USDA, USGS The National Map: Orthoimagery' },
+  { name: 'NASA GIBS', use: '실시간 위성 구름 영상(GOES-West)', href: 'https://www.earthdata.nasa.gov/engage/open-data-services-software/earthdata-developer-portal/gibs-api', credit: 'Imagery provided by NASA GIBS, NOAA GOES-West' },
+  { name: 'Iowa Environmental Mesonet', use: '실시간 강수 레이더(미국 NEXRAD)', href: 'https://mesonet.agron.iastate.edu/ogc/', credit: 'NEXRAD composite via Iowa State University IEM' },
   { name: 'Mapzen Terrain Tiles', use: '개발 단계의 3D 지형', href: 'https://registry.opendata.aws/terrain-tiles/', credit: 'Terrain Tiles hosted on AWS Open Data' },
 ];
 

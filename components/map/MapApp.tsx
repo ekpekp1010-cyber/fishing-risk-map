@@ -9,11 +9,17 @@ import RecommendList from '@/components/spot/RecommendList';
 import { GradeIcon } from '@/components/spot/RiskBadge';
 import SpotSheet from '@/components/spot/SpotSheet';
 import { retry, USE_FIXTURES, useApi, useLastReady, type ApiRequest } from '@/lib/hooks/api';
-import { DEFAULT_LAYERS, PILOT, inPilotBbox, type LayerState } from '@/lib/map/config';
+import { DEFAULT_LAYERS, LIVE, PILOT, inPilotBbox, type LayerState } from '@/lib/map/config';
+import { liveSummary, loadLiveGrid, WAVE_STOPS, type LiveGrid } from '@/lib/map/live';
 import type { Grade, SpotSummary, SpotType } from '@/lib/contract/types';
 import { fixtureZonesGeoJson } from '@/lib/ui/dev-fixtures';
 import { GRADE_LABEL, TYPE_LABEL } from '@/lib/ui/labels';
-import { addHoursIso, floorToHourIso, HOURS_AHEAD } from '@/lib/ui/time';
+import { addHoursIso, floorToHourIso, formatClock, HOURS_AHEAD } from '@/lib/ui/time';
+
+const WAVE_MAX = WAVE_STOPS[WAVE_STOPS.length - 1][0];
+const WAVE_GRADIENT = `linear-gradient(to right, ${WAVE_STOPS.map(([h, c]) => `${c} ${(h / WAVE_MAX) * 100}%`).join(', ')})`;
+/** 넓게 봐야 보이는 실시간 레이어. 켜면 지도가 물러난다. */
+const WIDE_LAYERS = ['waves', 'radar', 'clouds'] as const;
 
 const MAX_INDEX = HOURS_AHEAD - 1;
 const NO_SPOTS: SpotSummary[] = [];
@@ -63,6 +69,7 @@ export default function MapApp() {
   const [mode, setMode] = useState<'2d' | '3d'>('3d');
   const [focus, setFocus] = useState<MapFocus | null>(boot.focus);
   const [center, setCenter] = useState({ lng: PILOT.center[0], lat: PILOT.center[1], inside: true });
+  const [liveGrid, setLiveGrid] = useState<LiveGrid | null>(null);
   const [snack, setSnack] = useState<string | null>(
     boot.webgl ? null : '이 기기에서는 3D 지도를 쓸 수 없어 목록으로 보여 드립니다.',
   );
@@ -81,6 +88,24 @@ export default function MapApp() {
     const id = setInterval(() => setIndex((i) => (i + 1) % (MAX_INDEX + 1)), 900);
     return () => clearInterval(id);
   }, [playing]);
+
+  // 실시간 바람·파고: 해당 레이어가 켜져 있을 때만 받는다.
+  const needsLive = boot.webgl && (layers.wind || layers.waves);
+  useEffect(() => {
+    if (!needsLive) return;
+    let alive = true;
+    loadLiveGrid().then(
+      (grid) => {
+        if (alive) setLiveGrid(grid);
+      },
+      () => {
+        if (alive) setSnack('실시간 바람·파고를 불러오지 못했습니다.');
+      },
+    );
+    return () => {
+      alive = false;
+    };
+  }, [needsLive]);
 
   useEffect(() => {
     if (!snack) return;
@@ -140,6 +165,16 @@ export default function MapApp() {
     );
   };
 
+  const changeLayers = (next: LayerState) => {
+    const turnedOnWide = WIDE_LAYERS.some((k) => next[k] && !layers[k]);
+    setLayers(next);
+    if (turnedOnWide) {
+      setFocus((f) => ({ lng: PILOT.center[0] - 0.35, lat: PILOT.center[1], zoom: LIVE.regionalZoom, key: (f?.key ?? 0) + 1 }));
+    }
+  };
+
+  const live = liveGrid && needsLive ? liveSummary(liveGrid, PILOT.center[0], PILOT.center[1]) : null;
+
   const recommendCenter = center.inside ? center : { lng: PILOT.center[0], lat: PILOT.center[1] };
 
   return (
@@ -156,6 +191,7 @@ export default function MapApp() {
             mode={mode}
             focus={focus}
             onMove={handleMove}
+            liveGrid={liveGrid}
           />
         ) : (
           <ol className="nomap" aria-label="포인트 목록">
@@ -191,6 +227,21 @@ export default function MapApp() {
               selectSpot(s.id, s);
             }}
           />
+          {live && (
+            <p className="live-chip" role="status">
+              <span className="live-chip__dot" aria-hidden="true" />
+              실시간 {formatClock(live.observedAt)}
+              {live.windSpeed !== null && ` · 바람 ${live.windSpeed.toFixed(1)} m/s`}
+              {live.waveHeight !== null && ` · 파고 ${live.waveHeight.toFixed(1)} m`}
+            </p>
+          )}
+          {layers.waves && (
+            <p className="wave-legend">
+              파고
+              <span className="wave-legend__bar" style={{ background: WAVE_GRADIENT }} aria-hidden="true" />
+              0 ~ {WAVE_MAX} m
+            </p>
+          )}
           {outOfCoverage && (
             <p className="banner banner--float" role="status">
               이 지역은 아직 분석되지 않았습니다.
@@ -209,7 +260,7 @@ export default function MapApp() {
           )}
         </div>
 
-        {boot.webgl && <MapControls mode={mode} onMode={setMode} layers={layers} onLayers={setLayers} onLocate={locate} />}
+        {boot.webgl && <MapControls mode={mode} onMode={setMode} layers={layers} onLayers={changeLayers} onLocate={locate} />}
 
         <ul className="legend" aria-label="등급 범례">
           {LEGEND.map((g) => (
