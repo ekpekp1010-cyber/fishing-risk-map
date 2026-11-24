@@ -326,11 +326,19 @@ $('resetBtn').onclick = () => {
   resetting = true; localStorage.removeItem(STORE); location.reload();
 };
 $('filterType').onchange = renderList; $('filterState').onchange = renderList;
-$('legend').innerHTML = Object.entries(TYPES).map(([k, v]) => `<span><span class="dot" style="background:${COLORS[k]}"></span>${v}</span>`).join('') + '<span style="opacity:.6">흐림 = 뺌</span>';
+$('legend').innerHTML = Object.entries(TYPES).map(([k, v]) => `<span><span class="dot" style="background:${COLORS[k]}"></span>${v}</span>`).join('') + '<span style="opacity:.6">흐림 = 뺌 · 노란 면 = 위험 구역</span>';
+
+// 위험 구역(tiles.py 결과)이 있으면 반투명하게 겹쳐 본다.
+map.on('load', async () => {
+  const gj = await fetch('../out/tiles/zones.geojson', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);
+  if (!gj) return;
+  map.addSource('zones', { type: 'geojson', data: gj });
+  map.addLayer({ id: 'zones-fill', type: 'fill', source: 'zones', paint: { 'fill-color': '#ffd33d', 'fill-opacity': 0.25 } });
+  map.addLayer({ id: 'zones-line', type: 'line', source: 'zones', paint: { 'line-color': '#ffd33d', 'line-width': 1.5 } });
+});
 
 try {
   await load();
-  map.on('load', () => {});
   for (const s of spots) addMarker(s);
   renderList();
 } catch (e) {

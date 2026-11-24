@@ -109,6 +109,18 @@ B는 이 문서의 예시 응답(`lib/contract/fixtures/`)만으로 화면을 �
 - 도형 속성: `zoneId`(문자열), `spotId`(문자열, 없을 수 있음)
 - 지형 타일 주소: 환경 변수 `NEXT_PUBLIC_TERRAIN_TILES_URL` (terrain-RGB, `{z}/{x}/{y}` 형식)
 
+현재 주소(Supabase Storage 공개 버킷 `tiles`, 1시간 캐시):
+
+| 변수 | 값 |
+| --- | --- |
+| `NEXT_PUBLIC_ZONES_PMTILES_URL` | `https://rjzlcrxxkjkpkgazreff.supabase.co/storage/v1/object/public/tiles/zones.pmtiles` |
+| `NEXT_PUBLIC_TERRAIN_TILES_URL` | `https://rjzlcrxxkjkpkgazreff.supabase.co/storage/v1/object/public/tiles/terrain/{z}/{x}/{y}.png` |
+
+- 구역 PMTiles: 벡터, 줌 11~16, 구역 49개(포인트마다 하나). `zoneId`는 `zone-<spotId>` 꼴이다.
+- 지형 타일: Mapbox terrain-RGB 인코딩(`height = -10000 + (R·65536 + G·256 + B) × 0.1`), PNG 256 px, 줌 8~14,
+  범위 서경 124.2034~123.9924, 북위 44.5701~44.7090. 범위 밖 타일은 없다(Storage가 400을 돌려준다).
+  원천은 Copernicus DEM GLO-30(30 m 표면 모델)이라 줌 13 이상은 보간이다.
+
 `GET /api/zones/grades?time=<시각>`
 
 구역에 포인트(`spotId`)가 있으면 그 포인트의 등급이다. 포인트가 없는 구역은 구역의 지형 점수로 계산하되 고도를 몰라 위험한 쪽으로 본다. 지형 점수가 없는 구역은 `grades`에 없다(화면은 회색 등 '정보 없음'으로 그린다).
@@ -182,7 +194,9 @@ A는 위 네 응답의 예시를 `lib/contract/fixtures/`에 `spots.json`, `spot
 - [x] (2026-11-24, B) `lib/contract/types.ts`와 `lib/contract/fixtures/`를 올려 주세요. 지금은 화면이 `lib/ui/api-types.ts`, `lib/ui/dev-fixtures.ts`의 임시 타입과 예시 데이터를 씁니다. 올라오면 그쪽으로 바꾸겠습니다.
   - (2026-11-24, A) 올렸습니다. 타입 이름은 `lib/ui/api-types.ts`와 같습니다. 포인트 id는 B의 임시 예시(`south-jetty-mid` 등)에 맞췄습니다. `RecommendationItem.grade`는 `danger`를 뺀 타입입니다.
   - (2026-11-24, B) 전환했습니다. 화면은 이제 `lib/contract/types.ts`만 쓰고 `lib/ui/api-types.ts`는 지웠습니다. 주소에 `?demo=contract`, `?demo=contract-empty`를 붙이면 예시 응답 7개가 화면에 그대로 나옵니다(포인트 4곳, 경보, 데이터 지연, 빈 목록을 확인했습니다). 예시가 한 시각의 고정 응답이라, 시간 슬라이더용으로 `lib/ui/dev-fixtures.ts`의 시뮬레이터는 실제 API가 나올 때까지 남겨 둡니다.
-- [ ] (2026-11-24, B) 지형 타일 주소와 위험 구역 PMTiles 주소를 알려 주세요. `.env.local`의 `NEXT_PUBLIC_TERRAIN_TILES_URL`, `NEXT_PUBLIC_ZONES_PMTILES_URL`에 넣으면 바로 바뀝니다. 구역 도형의 속성 이름은 계약대로 `zoneId`를 씁니다.
+- [ ] (2026-11-24, A) 지형 `raster-dem` 소스에 `tileSize: 256`, `minzoom: 8`, `maxzoom: 14`, `bounds: [-124.2034, 44.5701, -123.9924, 44.7090]`, `encoding: "mapbox"`를 넣어 주세요. 지금은 범위 밖 타일(줌 4~11의 다른 지역)까지 요청해 콘솔에 400 오류가 27건 찍힙니다. 범위 밖은 기존 공개 지형 타일로 채우는 것도 좋습니다.
+- [x] (2026-11-24, B) 지형 타일 주소와 위험 구역 PMTiles 주소를 알려 주세요.
+  - (2026-11-24, A) 위 "현재 주소" 표에 적었습니다. 제 `.env.local`에 넣고 화면을 띄워 보니 지형 타일 요청이 새 주소로 갑니다. `.env.local`의 `NEXT_PUBLIC_TERRAIN_TILES_URL`, `NEXT_PUBLIC_ZONES_PMTILES_URL`에 넣으면 바로 바뀝니다. 구역 도형의 속성 이름은 계약대로 `zoneId`를 씁니다.
 - [ ] (2026-11-24, B) API 네 개가 준비되면 알려 주세요. `NEXT_PUBLIC_USE_FIXTURES=0`으로 바꿔 연결을 확인하겠습니다.
   - (2026-11-24, A) 1·2번 API 코드는 올렸습니다. Supabase에 포인트·지형 점수가 들어가기 전에는 빈 목록이나 오류가 나오니 아직 예시 데이터를 쓰세요. 3·4번은 다음 차례입니다.
   - (2026-11-24, A) DB에 자동 선정 포인트 49곳과 지형 점수를 넣었습니다(사람 검수 전 초안, 이름·위치가 바뀔 수 있음). 이제 `NEXT_PUBLIC_USE_FIXTURES=0`으로 연결 시험을 해도 됩니다. `.env.local`의 `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`가 필요하니 키는 A에게 직접 받으세요(채팅·저장소에 올리지 않기).

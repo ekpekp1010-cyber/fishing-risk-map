@@ -16,10 +16,12 @@ pytest pipeline/tests
 | 2 | `python -m fishrisk.spots` | `review/spots_draft.csv` (포인트 초안, 사람이 검수) |
 | 3 | `python -m fishrisk.rasters` | `data/grid/*.tif` (DEM·피복·물 출현 빈도·계절성, 30 m UTM 10N) |
 | 4 | `python -m fishrisk.terrain` | `out/terrain_scores.json` (지표 7개, V, 도보 시간) |
-| 5 | `python -m fishrisk.load_db` | Supabase `spots`, `terrain_scores` 적재(`.env.local` 필요) |
+| 5 | `python -m fishrisk.tiles` | `out/tiles/zones.geojson`, `zones.pmtiles`, `terrain/{z}/{x}/{y}.png` |
+| 6 | `python -m fishrisk.load_db` | Supabase `spots`, `terrain_scores`, `zones` 적재(`.env.local` 필요) |
+| 7 | `python -m fishrisk.upload_tiles` | Storage 공개 버킷 `tiles`에 올리고 화면용 주소 출력 |
 
 - `spots`는 검수 표가 이미 있으면 덮어쓰지 않는다(`--force`로 다시 만든다). 검수 때 `keep`을 `no`로, `name`·`note`를 고쳐 쓴다.
-- 4·5는 검수 표의 `keep=yes`만 계산·활성화한다.
+- 4~6은 검수 표의 `keep=yes`만 계산·활성화한다.
 
 ## 포인트 검수 화면
 
@@ -41,7 +43,9 @@ python pipeline/review/serve.py      # http://127.0.0.1:8765/ (검수에 필요�
 | `fishrisk/rasters.py` | 공개 데이터 4종 내려받기, 공통 격자로 맞추기 |
 | `fishrisk/terrain.py` | 경사·고도·수변 거리·침수 흔적·파랑 노출·지표·퇴로, 점수 기준 상수 |
 | `fishrisk/terrain_score.py` | 요인 점수를 PRD 가중치로 합쳐 V와 기여도 |
+| `fishrisk/tiles.py` | 위험 구역 도형(물가 띠 ∩ 포인트 둘레, 보로노이로 나눔), 구역 PMTiles, terrain-RGB |
 | `fishrisk/load_db.py` | PostgREST로 upsert(service role 키는 출력하지 않음) |
+| `fishrisk/upload_tiles.py` | Supabase Storage 업로드 |
 
 내려받은 원본·격자·중간 결과는 `pipeline/data/`, `pipeline/out/`에 두며 커밋하지 않는다(`.gitignore`).
 
