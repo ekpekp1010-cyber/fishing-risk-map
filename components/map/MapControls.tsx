@@ -17,6 +17,7 @@ const LAYER_ITEMS: Array<{ key: keyof LayerState; label: string; available: bool
   { key: 'waves', label: '파고', available: true },
   { key: 'radar', label: '강수 레이더(미국)', available: true },
   { key: 'clouds', label: '위성 구름 영상', available: true },
+  { key: 'currents', label: '표층 해류', available: true, group: '시간별 예보' },
   { key: 'zones', label: '위험 구역', available: true, group: '지도' },
   { key: 'relief', label: '지형 음영(경사)', available: true },
   { key: 'flood', label: '과거 침수 흔적', available: MAP_CONFIG.floodTiles !== null, note: '데이터 준비 중' },

@@ -4,10 +4,9 @@
 // 시각은 지도의 시간 막대와 같은 값을 쓴다.
 
 import RecommendList from './RecommendList';
-import { GradeIcon } from './RiskBadge';
+import SpotList from './SpotList';
 import { useApi } from '@/lib/hooks/api';
 import type { RiskAlert } from '@/lib/contract/types';
-import { GRADE_LABEL, TYPE_LABEL } from '@/lib/ui/labels';
 import { formatPlaceTime } from '@/lib/ui/time';
 
 interface Props {
@@ -47,23 +46,7 @@ export default function RecommendPage({ time, baseTime, center, alert, onPick }:
             </p>
           )}
           {spotsRes.status === 'ready' && (
-            <ol className="list">
-              {[...spotsRes.data.spots]
-                .sort((a, b) => a.score - b.score)
-                .map((s) => (
-                  <li key={s.id}>
-                    <button type="button" className="list-item" onClick={() => onPick(s)}>
-                      <GradeIcon grade={s.grade} size={32} />
-                      <span className="list-item__text">
-                        <span className="list-item__title">{s.name}</span>
-                        <span className="list-item__meta">
-                          {GRADE_LABEL[s.grade]} · 점수 {s.score} · {TYPE_LABEL[s.type]}
-                        </span>
-                      </span>
-                    </button>
-                  </li>
-                ))}
-            </ol>
+            <SpotList spots={spotsRes.data.spots} onPick={onPick} />
           )}
         </div>
       </section>

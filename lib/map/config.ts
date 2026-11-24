@@ -18,7 +18,7 @@ const satelliteUrl = env(process.env.NEXT_PUBLIC_SATELLITE_TILES_URL);
  * 넓은 화면에서 지도 왼쪽을 덮는 패널의 폭(여백 포함, px). styles/app.css의 --inset-left와 같은 값이다.
  * 지도가 이만큼을 뺀 나머지의 가운데를 중심으로 삼아, 고른 포인트가 패널 뒤로 숨지 않는다.
  */
-export const PANEL = { minWidth: 840, inset: 384 };
+export const PANEL = { minWidth: 840, inset: 344 };
 
 /** 3D 보기의 카메라와 지형 강조. 해안이 낮은 지형이라 높낮이를 조금 과장해 보여 준다. */
 export const VIEW_3D = { pitch: 68, bearing: -24, exaggeration: 1.6 };
@@ -41,6 +41,10 @@ export const MAP_CONFIG = {
     satelliteUrl ?? 'https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}',
   satelliteMaxZoom: satelliteUrl ? 18 : 16,
   satelliteAttribution: satelliteUrl ? '' : 'USDA, USGS The National Map: Orthoimagery',
+  // 먼바다의 광역 영상과 수심 음영은 각 자료가 제공되는 배율까지만 요청한다.
+  offshoreTiles: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?blankTile=false',
+  oceanTiles: 'https://services.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}?blankTile=false',
+  oceanAttribution: 'Ocean basemap: Esri, Garmin, GEBCO, NOAA NGDC, and other contributors',
   /** 타일 주소가 있을 때만 켤 수 있다. */
   floodTiles: env(process.env.NEXT_PUBLIC_FLOOD_TILES_URL),
 };
@@ -68,6 +72,7 @@ export interface LayerState {
   waves: boolean;
   radar: boolean;
   clouds: boolean;
+  currents: boolean;
 }
 
 export const DEFAULT_LAYERS: LayerState = {
@@ -79,6 +84,7 @@ export const DEFAULT_LAYERS: LayerState = {
   waves: false,
   radar: false,
   clouds: false,
+  currents: false,
 };
 
 /**

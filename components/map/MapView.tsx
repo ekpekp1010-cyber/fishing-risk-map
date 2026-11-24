@@ -10,6 +10,8 @@ import { GRADE_LABEL, TYPE_LABEL } from '@/lib/ui/labels';
 import { GRADE_COLOR, LIVE, MAP_CONFIG, PANEL, PILOT, VIEW_3D, type LayerState } from '@/lib/map/config';
 import { startWindParticles, waveImage, type LiveGrid } from '@/lib/map/live';
 import { gradeShapeSvg } from '@/lib/map/pins';
+import type { OceanCurrent } from '@/lib/map/currents';
+import { createCurrentField, startCurrentParticles } from '@/lib/map/current-flow';
 
 export interface MapFocus {
   lng: number;
@@ -38,6 +40,7 @@ interface Props {
   onMove: (move: MapMove) => void;
   /** 실시간 바람·파고 격자. 아직 못 받았으면 null */
   liveGrid: LiveGrid | null;
+  currents?: OceanCurrent[];
 }
 
 interface PinEntry {
@@ -60,9 +63,11 @@ export default function MapView({
   focus,
   onMove,
   liveGrid,
+  currents,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  const currentField = useRef<ReturnType<typeof createCurrentField>>(null);
   const pinsRef = useRef(new Map<string, PinEntry>());
   const onSelectRef = useRef(onSelect);
   const onMoveRef = useRef(onMove);
@@ -122,6 +127,28 @@ export default function MapView({
 
       // 항공·위성 사진을 지형 위에 입힌다. 지명 글자는 사진 위에 남도록 첫 글자 레이어 바로 아래에 넣는다.
       const firstLabelLayer = map.getStyle().layers.find((l) => l.type === 'symbol')?.id;
+      map.addSource('offshore-imagery', {
+        type: 'raster',
+        tiles: [MAP_CONFIG.offshoreTiles],
+        tileSize: 256,
+        maxzoom: 9,
+        attribution: 'Imagery: Esri, Vantor, Earthstar Geographics, and the GIS User Community',
+      });
+      map.addLayer(
+        { id: 'offshore-imagery', type: 'raster', source: 'offshore-imagery', layout: { visibility: 'none' } },
+        firstLabelLayer,
+      );
+      map.addSource('ocean-base', {
+        type: 'raster',
+        tiles: [MAP_CONFIG.oceanTiles],
+        tileSize: 256,
+        maxzoom: 12,
+        attribution: MAP_CONFIG.oceanAttribution,
+      });
+      map.addLayer(
+        { id: 'ocean-base', type: 'raster', source: 'ocean-base', layout: { visibility: 'none' }, paint: { 'raster-opacity': 0.32 } },
+        firstLabelLayer,
+      );
       map.addSource('satellite', {
         type: 'raster',
         tiles: [MAP_CONFIG.satelliteTiles],
@@ -266,6 +293,8 @@ export default function MapView({
     set('relief', layers.relief);
     set('flood', layers.flood);
     set('satellite', layers.satellite);
+    set('offshore-imagery', layers.satellite);
+    set('ocean-base', layers.satellite);
     set('clouds', layers.clouds);
     set('radar', layers.radar);
     set('waves', layers.waves);
@@ -302,6 +331,44 @@ export default function MapView({
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     return startWindParticles(map, liveGrid);
   }, [ready, liveGrid, layers.wind]);
+
+  // 시간 변경은 입자의 위치를 유지한 채 다음 프레임부터 새 예보 벡터에 반영한다.
+  useEffect(() => {
+    currentField.current = createCurrentField(currents ?? []);
+  }, [currents]);
+
+  const hasCurrents = Boolean(currents?.length);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready || !hasCurrents) return;
+    return startCurrentParticles(map, () => currentField.current);
+  }, [ready, hasCurrents]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready || !currents) return;
+    const markers: maplibregl.Marker[] = [];
+    for (const { lng, lat, speed, direction } of currents) {
+      const position: [number, number] = [lng, lat];
+      // 화살표는 지도와 함께 회전·기울고 숫자는 화면에서 똑바로 읽히게 한다.
+      const arrow = document.createElement('span');
+      arrow.className = 'current-arrow';
+      arrow.textContent = direction === null ? '●' : '↑';
+      arrow.setAttribute('aria-hidden', 'true');
+      markers.push(new maplibregl.Marker({
+        element: arrow, rotation: direction ?? 0, rotationAlignment: 'map', pitchAlignment: 'map',
+      }).setLngLat(position).addTo(map));
+
+      const label = document.createElement('span');
+      label.className = 'current-speed';
+      label.textContent = speed.toFixed(2);
+      label.title = `해류 ${label.textContent} m/s${direction === null ? '' : ` · ${direction}° 방향`}`;
+      label.setAttribute('aria-label', label.title);
+      markers.push(new maplibregl.Marker({ element: label, anchor: 'top', offset: [0, 12] })
+        .setLngLat(position).addTo(map));
+    }
+    return () => markers.forEach(marker => marker.remove());
+  }, [ready, currents]);
 
   // 실제 구역 도형(PMTiles)이 없을 때: 포인트 등급으로 그라데이션 구역을 그린다
   useEffect(() => {

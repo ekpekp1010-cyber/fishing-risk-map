@@ -3,6 +3,9 @@ import { GradeIcon } from '@/components/spot/RiskBadge';
 import { SAFETY_NOTICE } from '@/lib/ui/labels';
 
 const SOURCES: Array<{ name: string; use: string; href: string; credit: string }> = [
+  { name: 'World Imagery', use: '근해 항공사진 바깥의 광역 위성 영상', href: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer', credit: 'Esri, Vantor, Earthstar Geographics, and the GIS User Community' },
+  { name: 'World Ocean Base', use: '항공사진이 없는 해역의 수심 음영 배경', href: 'https://services.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer', credit: 'Esri, Garmin, GEBCO, NOAA NGDC, and other contributors' },
+  { name: 'Open-Meteo Marine', use: '뉴포트 앞바다의 시간별 표층 해류 방향·속도', href: 'https://open-meteo.com/en/docs/marine-weather-api', credit: '약 8 km 격자의 모델 예보입니다. 항구 안과 방파제 주변 물살은 다를 수 있습니다. 항해용으로 사용할 수 없습니다.' },
   { name: 'Open-Meteo', use: '기상·파랑·해수면·하천 유량 예보', href: 'https://open-meteo.com/', credit: 'Weather data by Open-Meteo.com (CC BY 4.0)' },
   { name: 'Copernicus DEM GLO-30', use: '고도, 경사', href: 'https://dataspace.copernicus.eu/explore-data/data-collections/copernicus-contributing-missions/collections-description/COP-DEM', credit: '© DLR e.V. 2010-2014, © Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the European Union and ESA' },
   { name: 'Copernicus Sentinel-2', use: '수변 경계, 식생', href: 'https://dataspace.copernicus.eu/', credit: 'Contains modified Copernicus Sentinel data' },

@@ -12,12 +12,14 @@ import RecommendList from '@/components/spot/RecommendList';
 import RecommendPage from '@/components/spot/RecommendPage';
 import { GradeIcon } from '@/components/spot/RiskBadge';
 import SpotSheet from '@/components/spot/SpotSheet';
+import SpotList from '@/components/spot/SpotList';
 import { retry, USE_FIXTURES, useApi, useLastReady, useRegionAlerts, type ApiRequest } from '@/lib/hooks/api';
 import { DEFAULT_LAYERS, LIVE, PILOT, inPilotBbox, type LayerState } from '@/lib/map/config';
 import { liveSummary, loadLiveGrid, WAVE_STOPS, type LiveGrid } from '@/lib/map/live';
+import { loadCurrentForecast, type CurrentForecast } from '@/lib/map/currents';
 import type { Grade, SpotSummary, SpotType } from '@/lib/contract/types';
 import { fixtureZonesGeoJson } from '@/lib/ui/dev-fixtures';
-import { GRADE_LABEL, TYPE_LABEL } from '@/lib/ui/labels';
+import { GRADE_LABEL, SAFETY_NOTICE } from '@/lib/ui/labels';
 import { addHoursIso, floorToHourIso, formatClock, formatPlaceTime, HOURS_AHEAD } from '@/lib/ui/time';
 
 const WAVE_MAX = WAVE_STOPS[WAVE_STOPS.length - 1][0];
@@ -86,11 +88,24 @@ export default function MapApp() {
   const [focus, setFocus] = useState<MapFocus | null>(boot.focus);
   const [center, setCenter] = useState({ lng: PILOT.center[0], lat: PILOT.center[1], inside: true });
   const [liveGrid, setLiveGrid] = useState<LiveGrid | null>(null);
+  const [currentForecast, setCurrentForecast] = useState<CurrentForecast | null>(null);
+  const [currentFailed, setCurrentFailed] = useState(false);
   const [snack, setSnack] = useState<string | null>(
     boot.webgl ? null : '이 기기에서는 3D 지도를 쓸 수 없어 목록으로 보여 드립니다.',
   );
 
   const time = addHoursIso(baseTime, index);
+  const currents = layers.currents ? currentForecast?.get(Date.parse(time) / 1000) : undefined;
+
+  useEffect(() => {
+    if (!layers.currents || currentForecast || currentFailed) return;
+    const controller = new AbortController();
+    loadCurrentForecast(baseTime, controller.signal).then(
+      forecast => { if (!controller.signal.aborted) setCurrentForecast(forecast); },
+      () => { if (!controller.signal.aborted) setCurrentFailed(true); },
+    );
+    return () => controller.abort();
+  }, [baseTime, layers.currents, currentForecast, currentFailed]);
 
   // 슬라이더를 끄는 동안 요청이 몰리지 않게 조금 늦춰서 불러온다.
   const [queryTime, setQueryTime] = useState(time);
@@ -190,7 +205,9 @@ export default function MapApp() {
   const changeLayers = (next: LayerState) => {
     const turnedOnWide = WIDE_LAYERS.some((k) => next[k] && !layers[k]);
     setLayers(next);
-    if (turnedOnWide) {
+    if (next.currents && !layers.currents) {
+      setFocus(f => ({ lng: -124.36, lat: 44.64, zoom: 9, key: (f?.key ?? 0) + 1 }));
+    } else if (turnedOnWide) {
       setFocus((f) => ({ lng: PILOT.center[0] - 0.35, lat: PILOT.center[1], zoom: LIVE.regionalZoom, key: (f?.key ?? 0) + 1 }));
     }
   };
@@ -214,25 +231,12 @@ export default function MapApp() {
             focus={focus}
             onMove={handleMove}
             liveGrid={liveGrid}
+            currents={currents}
           />
         ) : (
-          <ol className="nomap" aria-label="포인트 목록">
-            {[...visibleSpots]
-              .sort((a, b) => a.score - b.score)
-              .map((s) => (
-                <li key={s.id}>
-                  <button type="button" className="list-item" onClick={() => selectSpot(s.id)}>
-                    <GradeIcon grade={s.grade} size={32} />
-                    <span className="list-item__text">
-                      <span className="list-item__title">{s.name}</span>
-                      <span className="list-item__meta">
-                        {GRADE_LABEL[s.grade]} · 점수 {s.score} · {TYPE_LABEL[s.type]}
-                      </span>
-                    </span>
-                  </button>
-                </li>
-              ))}
-          </ol>
+          <div className="nomap" aria-label="포인트 목록">
+            <SpotList spots={visibleSpots} onPick={(s) => selectSpot(s.id, s)} />
+          </div>
         )}
 
         <div className="mapapp__top">
@@ -274,9 +278,23 @@ export default function MapApp() {
               0 ~ {WAVE_MAX} m
             </p>
           )}
+          {layers.currents && (
+            <div className="current-legend" role="status">
+              <strong>표층 해류 · {formatPlaceTime(time, baseTime)}</strong>
+              {currentFailed ? (
+                <span>예보 연결 실패 <button type="button" onClick={() => setCurrentFailed(false)}>다시 시도</button></span>
+              ) : !currentForecast ? (
+                <span>해류 예보를 불러오는 중…</span>
+              ) : currents?.length ? (
+                <span>청록색 입자 · 흐르는 방향과 상대 속도 · 유속 m/s</span>
+              ) : (
+                <span>이 시각에 제공된 해류 값이 없습니다.</span>
+              )}
+            </div>
+          )}
           {outOfCoverage && (
             <p className="banner banner--float" role="status">
-              이 지역은 아직 분석되지 않았습니다.
+              지도 중심은 낚시 포인트 분석 지역 밖입니다.
               <button type="button" className="btn btn--text" onClick={() => flyTo(PILOT.center[0], PILOT.center[1])}>
                 {PILOT.name} 해안으로 이동
               </button>
@@ -319,7 +337,7 @@ export default function MapApp() {
       </div>
 
       {/* 지도 위에 뜬 패널 하나에 메뉴와 내용이 함께 들어간다. 좁은 화면에서는 아래에서 올라오는 시트가 된다. */}
-      <aside className="sheet" aria-label={tab === 'map' ? (selectedId ? '포인트 상세' : '추천 포인트') : PANEL_LABEL[tab]}>
+      <aside className="sheet" aria-label={tab === 'map' ? (selectedId ? '포인트 상세' : '포인트 현황') : PANEL_LABEL[tab]}>
         <button
           type="button"
           className="sheet__handle"
@@ -329,7 +347,7 @@ export default function MapApp() {
           <span />
         </button>
         <NavLinks />
-        <div className="sheet__content">
+        <div className="sheet__content" key={tab === 'map' ? `${tab}-${selectedId ?? ''}-${panel}` : tab}>
           {tab === 'settings' && <SettingsPanel />}
           {tab === 'recommend' && (
             <RecommendPage
@@ -368,7 +386,26 @@ export default function MapApp() {
               onBack={() => setPanel('detail')}
             />
           )}
-          {tab === 'map' && !selectedId && (
+          {tab === 'map' && !selectedId && boot.webgl && (
+            <section className="sheet-body">
+              <header className="sheet-header">
+                <div>
+                  <h2 className="sheet-title">포인트 현황</h2>
+                  <p className="meta">{PILOT.name} · {formatPlaceTime(queryTime, baseTime)} 기준</p>
+                </div>
+                {spotsRes.status === 'ready' && <span className="spot-count">{visibleSpots.length}곳</span>}
+              </header>
+              {spotsRes.status === 'loading' && <p className="meta" role="status">포인트를 불러오는 중…</p>}
+              {spotsRes.status === 'error' && <p role="alert">포인트 현황을 불러오지 못했습니다.</p>}
+              {spotsRes.status === 'ready' && (visibleSpots.length ? (
+                <SpotList spots={visibleSpots} onPick={(s) => selectSpot(s.id, s)} />
+              ) : (
+                <p className="state">현재 조건에 맞는 포인트가 없습니다.</p>
+              ))}
+              <p className="notice">{SAFETY_NOTICE}</p>
+            </section>
+          )}
+          {tab === 'map' && !selectedId && !boot.webgl && (
             <RecommendList
               title="추천 포인트"
               lead="선택한 시간대에 위험이 낮고 접근이 쉬운 곳입니다."
