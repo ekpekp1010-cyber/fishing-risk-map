@@ -101,7 +101,8 @@
   top: 12px;
   left: 12px;
   z-index: 3;
-  width: min(440px, calc(100% - 96px));
+  /* 오른쪽 위 지도 컨트롤(2D·3D)과 겹치지 않게 자리를 남긴다 */
+  width: min(440px, calc(100% - 136px));
 }
 .mapapp__time {
   position: absolute;
