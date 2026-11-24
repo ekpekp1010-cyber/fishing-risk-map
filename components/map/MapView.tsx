@@ -7,7 +7,7 @@ import { Protocol } from 'pmtiles';
 import type { FeatureCollection } from 'geojson';
 import { ZONES_LAYER, type Grade, type SpotSummary } from '@/lib/contract/types';
 import { GRADE_LABEL, TYPE_LABEL } from '@/lib/ui/labels';
-import { GRADE_COLOR, LIVE, MAP_CONFIG, PILOT, VIEW_3D, type LayerState } from '@/lib/map/config';
+import { GRADE_COLOR, LIVE, MAP_CONFIG, PANEL, PILOT, VIEW_3D, type LayerState } from '@/lib/map/config';
 import { startWindParticles, waveImage, type LiveGrid } from '@/lib/map/live';
 import { gradeShapeSvg } from '@/lib/map/pins';
 
@@ -102,6 +102,12 @@ export default function MapView({
       }),
       'bottom-left',
     );
+
+    // 넓은 화면에서는 왼쪽 패널이 지도 위에 떠 있다. 그만큼을 뺀 나머지의 가운데를 지도 중심으로 삼는다.
+    const wide = window.matchMedia(`(min-width: ${PANEL.minWidth}px)`);
+    const applyPadding = () => map.setPadding({ top: 0, right: 0, bottom: 0, left: wide.matches ? PANEL.inset : 0 });
+    applyPadding();
+    wide.addEventListener('change', applyPadding);
 
     map.on('load', () => {
       const dem = {
@@ -231,6 +237,7 @@ export default function MapView({
 
     const pins = pinsRef.current;
     return () => {
+      wide.removeEventListener('change', applyPadding);
       pins.forEach((p) => p.marker.remove());
       pins.clear();
       map.remove();
