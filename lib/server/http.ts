@@ -1,5 +1,6 @@
 // Route Handler 공통: 오류 응답, 쿼리 검사, 캐시 헤더.
 
+import { unstable_rethrow } from 'next/navigation';
 import type { ApiErrorCode, ApiErrorResponse } from '../contract/types';
 import { floorHour } from './assemble';
 import { MissingEnvError } from './env';
@@ -31,6 +32,8 @@ export async function handle(fn: () => Promise<Response>): Promise<Response> {
   try {
     return await fn();
   } catch (e) {
+    // Next.js 내부 신호(빌드 때 정적 생성 중단 등)는 삼키지 않고 다시 던진다.
+    unstable_rethrow(e);
     if (e instanceof ApiError) return errorResponse(e.code, e.message);
     console.error(e);
     if (e instanceof MissingEnvError) return errorResponse('INTERNAL', '서버 설정이 끝나지 않았다.');
