@@ -69,6 +69,7 @@
     <div class="bar">
       <button class="primary" id="saveBtn">CSV 내려받기</button>
       <button id="resetBtn" title="이 브라우저에 저장된 수정을 지우고 원본으로">원본으로 되돌리기</button>
+      <span class="sub">마커는 "위치 수정"을 누른 포인트만 움직인다</span>
     </div>
     <div class="stats" id="stats"></div>
   </header>
@@ -89,6 +90,12 @@ const TYPES = { jetty:'방파제', pier:'부두', beach:'해변', estuary:'하�
 const COLORS = Object.fromEntries(Object.keys(TYPES).map(t => [t, getComputedStyle(document.documentElement).getPropertyValue('--' + t).trim()]));
 const COLS = ['id','name','type','lat','lng','forecast_cell','osm_id','osm_name','keep','note','sample_check'];
 const STORE = 'fishrisk-review-v1';
+// 시범 지역(+여유 1 km). 이 밖으로 옮기거나 추가하지 않는다.
+const BOUNDS = { west: -124.113, south: 44.581, east: -124.007, north: 44.699 };
+const inBounds = (lat, lng) => lat >= BOUNDS.south && lat <= BOUNDS.north && lng >= BOUNDS.west && lng <= BOUNDS.east;
+const MOVE_CONFIRM_M = 300;
+const metersBetween = (a, b) => Math.hypot((a.lat - b.lat) * 111320, (a.lng - b.lng) * 111320 * Math.cos(a.lat * Math.PI / 180));
+let editingPos = null; // 위치 수정 중인 포인트 id
 const FACTOR_KO = { slope:'경사', low_elevation:'저지대', flood_trace:'침수 흔적', water_proximity:'수변 근접', wave_exposure:'파랑 노출', surface:'지표', egress:'퇴로' };
 
 // ---- CSV ------------------------------------------------------------------------
@@ -127,7 +134,10 @@ async function load() {
   const saved = JSON.parse(localStorage.getItem(STORE) || 'null');
   spots = saved?.rows ?? structuredClone(original);
 }
-const persist = () => localStorage.setItem(STORE, JSON.stringify({ savedAt: new Date().toISOString(), rows: spots }));
+let resetting = false;
+const persist = () => { if (!resetting) localStorage.setItem(STORE, JSON.stringify({ savedAt: new Date().toISOString(), rows: spots })); };
+// 다른 탭에서 저장을 지우거나 바꾸면 이 탭도 다시 읽는다(지운 내용이 메모리에서 되살아나지 않게).
+window.addEventListener('storage', e => { if (e.key === STORE) location.reload(); });
 const origOf = id => original.find(o => o.id === id);
 const isEdited = s => { const o = origOf(s.id); return !o || ['name','type','lat','lng','keep','note'].some(k => String(o[k]) !== String(s[k])); };
 
@@ -171,7 +181,7 @@ map.addControl(new BaseToggle(), 'top-right');
 const markers = new Map();
 function markerEl(s) {
   const el = document.createElement('div');
-  el.style.cssText = `width:16px;height:16px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #0006;cursor:grab;background:${COLORS[s.type] || '#555'}`;
+  el.style.cssText = `width:16px;height:16px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #0006;cursor:pointer;background:${COLORS[s.type] || '#555'}`;
   el.title = s.name;
   return el;
 }
@@ -185,9 +195,18 @@ function styleMarker(s) {
   el.title = s.name;
 }
 function addMarker(s) {
-  const m = new maplibregl.Marker({ element: markerEl(s), draggable: true }).setLngLat([+s.lng, +s.lat]).addTo(map);
+  // 실수로 끌리지 않도록 기본은 고정. 상세 칸의 "위치 수정"을 누른 포인트만 끌 수 있다.
+  const m = new maplibregl.Marker({ element: markerEl(s), draggable: false }).setLngLat([+s.lng, +s.lat]).addTo(map);
   m.getElement().addEventListener('click', e => { e.stopPropagation(); select(s.id, false); });
-  m.on('dragend', () => { const { lng, lat } = m.getLngLat(); s.lat = lat.toFixed(6); s.lng = lng.toFixed(6); s.forecast_cell = cellId(lat, lng); persist(); select(s.id, false); });
+  m.on('dragend', () => {
+    const { lng, lat } = m.getLngLat();
+    const from = { lat: +s.lat, lng: +s.lng };
+    const moved = metersBetween(from, { lat, lng });
+    const ok = inBounds(lat, lng) && (moved < MOVE_CONFIRM_M || confirm(`${Math.round(moved)} m 옮깁니다. 맞나요?`));
+    if (!inBounds(lat, lng)) alert('시범 지역 밖으로는 옮길 수 없습니다.');
+    if (!ok) { m.setLngLat([from.lng, from.lat]); return; }
+    s.lat = lat.toFixed(6); s.lng = lng.toFixed(6); s.forecast_cell = cellId(lat, lng); persist(); select(s.id, false);
+  });
   markers.set(s.id, m); styleMarker(s);
 }
 
@@ -247,7 +266,9 @@ function renderDetail() {
       <button id="sMis" aria-pressed="${s.sample_check === 'mismatch'}">안 맞음</button>
       <button id="sNone" aria-pressed="${!s.sample_check}">미확인</button></div>`)}
     ${field('메모(뺀 이유, 안 맞는 점, 현장 정보)', `<textarea id="fNote">${escapeHtml(s.note)}</textarea>`)}
-    <div class="sub">위치 ${(+s.lat).toFixed(5)}, ${(+s.lng).toFixed(5)} · 마커를 끌어서 옮긴다 · OSM ${escapeHtml(s.osm_id || '-')} ${escapeHtml(s.osm_name || '')}</div>
+    <div class="bar"><button id="posBtn" aria-pressed="${editingPos === s.id}">${editingPos === s.id ? '위치 수정 끝내기' : '위치 수정'}</button>
+      ${origOf(s.id) ? '<button id="posReset">원래 위치로</button>' : ''}</div>
+    <div class="sub">위치 ${(+s.lat).toFixed(5)}, ${(+s.lng).toFixed(5)}${editingPos === s.id ? ' · 지금 마커를 끌어 옮길 수 있다' : ''} · OSM ${escapeHtml(s.osm_id || '-')} ${escapeHtml(s.osm_name || '')}</div>
     ${factors}`;
   const upd = (k, v) => { s[k] = v; persist(); styleMarker(s); renderList(); };
   $('fName').oninput = e => { s.name = e.target.value; persist(); styleMarker(s); renderList(); };
@@ -258,9 +279,21 @@ function renderDetail() {
   $('sMatch').onclick = () => { upd('sample_check', 'match'); renderDetail(); };
   $('sMis').onclick = () => { upd('sample_check', 'mismatch'); renderDetail(); };
   $('sNone').onclick = () => { upd('sample_check', ''); renderDetail(); };
+  $('posBtn').onclick = () => { setEditingPos(editingPos === s.id ? null : s.id); renderDetail(); };
+  if ($('posReset')) $('posReset').onclick = () => {
+    const o = origOf(s.id); s.lat = o.lat; s.lng = o.lng; s.forecast_cell = cellId(+o.lat, +o.lng);
+    markers.get(s.id).setLngLat([+o.lng, +o.lat]); persist(); renderDetail(); renderList();
+  };
+}
+function setEditingPos(id) {
+  if (editingPos && markers.get(editingPos)) markers.get(editingPos).setDraggable(false);
+  editingPos = id;
+  if (id && markers.get(id)) markers.get(id).setDraggable(true);
+  for (const [k, m] of markers) m.getElement().style.cursor = k === id ? 'grab' : 'pointer';
 }
 function select(id, fly) {
   const prev = selected; selected = id;
+  if (editingPos && editingPos !== id) setEditingPos(null);
   for (const s of spots) if (s.id === prev || s.id === id) styleMarker(s);
   const s = spots.find(x => x.id === id);
   if (fly && s) map.flyTo({ center: [+s.lng, +s.lat], zoom: Math.max(map.getZoom(), 16.5), speed: 1.6 });
@@ -271,10 +304,11 @@ function select(id, fly) {
 // ---- 추가 ------------------------------------------------------------------------
 function setAdd(on) { addMode = on; $('addBtn').setAttribute('aria-pressed', on); $('hint').hidden = !on; map.getCanvas().style.cursor = on ? 'crosshair' : ''; }
 $('addBtn').onclick = () => setAdd(!addMode);
-document.addEventListener('keydown', e => { if (e.key === 'Escape') setAdd(false); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { setAdd(false); setEditingPos(null); renderDetail(); } });
 map.on('click', e => {
   if (!addMode) return;
   const { lat, lng } = e.lngLat;
+  if (!inBounds(lat, lng)) { alert('시범 지역 밖에는 추가할 수 없습니다.'); return; }
   let n = 1; while (spots.some(s => s.id === `manual-rocks-${String(n).padStart(2, '0')}`)) n++;
   const s = { id: `manual-rocks-${String(n).padStart(2, '0')}`, name: `새 갯바위 ${n}`, type: 'rocks', lat: lat.toFixed(6), lng: lng.toFixed(6),
     forecast_cell: cellId(lat, lng), osm_id: '', osm_name: '', keep: 'yes', note: '검수 화면에서 추가', sample_check: '' };
@@ -289,7 +323,7 @@ $('saveBtn').onclick = () => {
 };
 $('resetBtn').onclick = () => {
   if (!confirm('이 브라우저에 저장된 수정을 모두 지우고 원본으로 되돌릴까요?')) return;
-  localStorage.removeItem(STORE); location.reload();
+  resetting = true; localStorage.removeItem(STORE); location.reload();
 };
 $('filterType').onchange = renderList; $('filterState').onchange = renderList;
 $('legend').innerHTML = Object.entries(TYPES).map(([k, v]) => `<span><span class="dot" style="background:${COLORS[k]}"></span>${v}</span>`).join('') + '<span style="opacity:.6">흐림 = 뺌</span>';
