@@ -13,6 +13,7 @@
 | --- | --- | --- | --- |
 | 개발자 A | `dev-a` | 위성·지형 분석, DB, 예보 수집, 위험도·추천 API | [역할 계획](docs/roles/developer-a-data-risk.md) |
 | 개발자 B | `dev-b` | 3D 지도, 화면, Material 3 디자인 | [역할 계획](docs/roles/developer-b-map-ui.md) |
+| 개발자 C | `dev-c` | 등급 타당성 검증, 실제 기기·사용자 테스트, 자동 테스트 | [역할 계획](docs/roles/developer-c-validation.md) |
 
 두 사람 사이의 약속(API 모양, 타일 주소)은 [docs/api-contract.md](docs/api-contract.md)에 있다.
 

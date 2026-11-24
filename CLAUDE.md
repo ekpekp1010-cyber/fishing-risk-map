@@ -15,10 +15,11 @@
 | --- | --- | --- |
 | 개발자 A (데이터·위험도 엔진) | `dev-a` | `docs/roles/developer-a-data-risk.md` |
 | 개발자 B (3D 지도·UI) | `dev-b` | `docs/roles/developer-b-map-ui.md` |
+| 개발자 C (검증·테스트) | `dev-c` | `docs/roles/developer-c-validation.md` |
 
 - `main`에서는 직접 작업하지 않는다. `main`은 두 사람의 완성된 작업이 합쳐지는 곳이다.
-- 세션 시작 메시지가 "지금 main 브랜치다"라고 하면, 사용자에게 개발자 A인지 B인지 묻고
-  `node scripts/git-sync.mjs use a` 또는 `node scripts/git-sync.mjs use b`를 실행한다.
+- 세션 시작 메시지가 "지금 main 브랜치다"라고 하면, 사용자에게 개발자 A, B, C 중 누구인지 묻고
+  `node scripts/git-sync.mjs use a`, `use b`, `use c` 중 맞는 것을 실행한다.
 - 상대의 브랜치를 체크아웃하거나 그 브랜치에 푸시하지 않는다.
 
 ## 3. 자동 동기화
@@ -61,7 +62,8 @@ Claude가 직접 해야 하는 일은 두 가지다.
 | `components/`, `styles/`, `public/` | B | UI 컴포넌트, Material 3 토큰, 정적 파일 |
 | `lib/map/`, `lib/ui/`, `lib/hooks/` | B | 지도 레이어, 화면 상태 |
 | `next.config.*`, `tsconfig.json`, `eslint.config.*` | B | 앱 골격 설정 |
-| `docs/`, `README.md` | 공유 | 문서 |
+| `validation/`, `tests/e2e/`, `docs/validation/` | C | 사고 사례와 재계산, 브라우저 자동 테스트, 검증 보고서 |
+| `docs/`, `README.md` | 공유 | 문서 (`docs/validation/` 제외) |
 | `package.json`, lock 파일 | 공유 | 5번 규칙을 따른다 |
 
 내 소유가 아닌 경로는 읽기만 한다. 고쳐야 할 이유가 생기면 고치지 말고
