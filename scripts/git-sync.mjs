@@ -15,7 +15,8 @@
 // 원칙: 강제 푸시를 하지 않는다. 충돌이 나면 되돌리고 알린다.
 
 import { execFileSync, execSync } from 'node:child_process';
-import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -147,6 +148,55 @@ function mergeMain() {
   return 'failed';
 }
 
+/** package.json과 package-lock.json의 내용 지문. 둘 다 없으면 null. */
+function depsHash() {
+  const files = ['package.json', 'package-lock.json'].map((f) => join(ROOT, f)).filter((f) => existsSync(f));
+  if (files.length === 0) return null;
+  const hash = createHash('sha1');
+  for (const f of files) hash.update(readFileSync(f));
+  return hash.digest('hex');
+}
+
+/**
+ * 상대가 의존성을 추가한 변경을 가져온 뒤에는 설치를 해야 검사와 실행이 된다.
+ * 마지막으로 설치했을 때의 의존성 지문(.git/claude-deps-stamp)과 지금을 비교해, 다르면 설치한다.
+ * 훅에서는 시간 제한 때문에 설치하지 않고 알리기만 한다. 직접 실행한 명령에서는 바로 설치한다.
+ * 반환: 계속 진행해도 되면 true.
+ */
+function syncDeps(dir) {
+  const current = depsHash();
+  if (!current) return true;
+  const stamp = join(dir, 'claude-deps-stamp');
+  const stamped = existsSync(stamp) ? readFileSync(stamp, 'utf8') : null;
+  if (stamped === current) return true;
+  if (HOOK) {
+    // 처음 한 번(지문 없음)은 node_modules가 없을 때만 알린다.
+    if (stamped !== null || !existsSync(join(ROOT, 'node_modules'))) {
+      say('[git-sync] 의존성이 바뀌었다. 작업 전에 `npm install`을 실행한다.');
+    }
+    return true;
+  }
+  console.log('[git-sync] 의존성이 바뀌어 npm install을 실행한다.');
+  const lockPath = join(ROOT, 'package-lock.json');
+  const hadLock = existsSync(lockPath);
+  const lockWasClean =
+    hadLock &&
+    git(['ls-files', '--error-unmatch', 'package-lock.json']).ok &&
+    git(['diff', '--quiet', 'HEAD', '--', 'package-lock.json']).ok;
+  try {
+    execSync('npm install --no-audit --no-fund', { cwd: ROOT, stdio: 'inherit' });
+    // npm이 lock 파일을 다시 쓰면 그 변경이 자동 커밋되어 상대의 lock 파일과 충돌한다.
+    // 저장소에 커밋된 lock 파일이 기준이므로, 방금 설치가 만든 변경만 되돌린다.
+    if (lockWasClean) git(['checkout', '--', 'package-lock.json']);
+    else if (!hadLock && existsSync(lockPath)) rmSync(lockPath);
+    writeFileSync(stamp, depsHash() ?? '');
+    return true;
+  } catch {
+    say('[git-sync] npm install 실패. 직접 실행해 원인을 확인한다.');
+    return false;
+  }
+}
+
 function pushBranch(branch) {
   let r = git(['push', '-u', 'origin', branch], 90_000);
   if (r.ok) return true;
@@ -194,6 +244,7 @@ function doPull(isStart) {
 
   if (g.branch === MAIN) {
     if (g.remote && remoteHas(MAIN) && !isDirty()) git(['merge', '--ff-only', `origin/${MAIN}`]);
+    syncDeps(g.dir);
     if (isStart) {
       say('[git-sync] 지금 main 브랜치다. main에서는 작업하지 않는다.');
       say('[git-sync] 사용자에게 개발자 A인지 B인지 묻고 `node scripts/git-sync.mjs use a` 또는 `use b`를 실행한다.');
@@ -213,6 +264,7 @@ function doPull(isStart) {
     }
     mergeMain();
   }
+  syncDeps(g.dir);
 
   if (isStart) {
     const doc = ROLE_DOC[g.branch];
@@ -273,7 +325,10 @@ function doShip() {
     }
     const m = mergeMain();
     if (m === 'conflict' || m === 'failed') return false;
-    if (attempt === 1 && !runChecks()) return false;
+    // 상대가 의존성을 추가했으면 검사 전에 설치한다. 설치하지 않으면 검사가 엉뚱한 이유로 실패한다.
+    if (!syncDeps(g.dir)) return false;
+    // 처음 한 번, 그리고 다시 시도하는 사이에 새 변경이 들어왔으면 검사를 다시 돌린다.
+    if ((attempt === 1 || m === 'merged') && !runChecks()) return false;
     if (!pushBranch(g.branch)) return false;
     const r = git(['push', 'origin', `HEAD:${MAIN}`], 90_000);
     if (r.ok) {
