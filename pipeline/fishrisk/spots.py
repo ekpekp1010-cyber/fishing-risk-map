@@ -76,6 +76,7 @@ class DraftSpot:
     source_name: str
     keep: str = "yes"
     note: str = ""
+    sample_check: str = ""  # 표본 대조 결과: "", "match", "mismatch" (검수 화면에서 기록)
 
     @property
     def cell(self) -> str:
@@ -213,16 +214,19 @@ def write_review(spots: list[DraftSpot], path: Path = REVIEW) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        w.writerow(["id", "name", "type", "lat", "lng", "forecast_cell", "osm_id", "osm_name", "keep", "note"])
+        w.writerow(["id", "name", "type", "lat", "lng", "forecast_cell", "osm_id", "osm_name", "keep", "note", "sample_check"])
         for s in spots:
-            w.writerow([s.id, s.name, s.type, s.lat, s.lng, s.cell, s.osm_id, s.source_name, s.keep, s.note])
+            w.writerow([s.id, s.name, s.type, s.lat, s.lng, s.cell, s.osm_id, s.source_name, s.keep, s.note, s.sample_check])
 
 
 def read_review(path: Path = REVIEW) -> list[DraftSpot]:
     with open(path, encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
     return [
-        DraftSpot(r["id"], r["name"], r["type"], float(r["lat"]), float(r["lng"]), r["osm_id"], r["osm_name"], r["keep"], r["note"])
+        DraftSpot(
+            r["id"], r["name"], r["type"], float(r["lat"]), float(r["lng"]),
+            r.get("osm_id", ""), r.get("osm_name", ""), r.get("keep", "yes"), r.get("note", ""), r.get("sample_check", ""),
+        )
         for r in rows
     ]
 
