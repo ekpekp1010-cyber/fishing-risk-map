@@ -939,3 +939,73 @@
 .sources small {
   color: var(--md-on-surface-variant);
 }
+
+/* ---- 실사 3D 시험 화면(/lab/photoreal). 재설계 0단계 확인용이며 정식 화면이 생기면 지운다. ---- */
+.lab {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+}
+.lab--empty {
+  display: grid;
+  align-content: center;
+  gap: 12px;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 24px 16px;
+  background: none;
+}
+.photoreal {
+  position: absolute;
+  inset: 0;
+}
+.lab__panel {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  display: grid;
+  gap: 8px;
+  width: 260px;
+  max-height: calc(100% - 72px);
+  overflow: auto;
+  padding: 16px;
+  border-radius: var(--md-shape-lg);
+  background: var(--md-surface-container);
+  box-shadow: var(--md-elevation-2);
+}
+.lab__panel h1 {
+  font: var(--md-title-medium);
+}
+.lab__panel dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 0;
+  font: var(--md-body-small);
+  font-variant-numeric: tabular-nums;
+}
+.lab__panel dd {
+  margin: 0;
+  text-align: right;
+}
+.lab__error {
+  color: var(--md-error);
+  font: var(--md-body-small);
+}
+.lab__spots .btn {
+  justify-content: flex-start;
+  width: 100%;
+  text-align: left;
+}
+.lab__credits {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  max-width: 70%;
+  padding: 2px 8px;
+  border-radius: var(--md-shape-xs);
+  background: rgb(255 255 255 / 0.85);
+  color: #1d1b20;
+  font: var(--md-label-small);
+}
