@@ -101,7 +101,8 @@
   top: 12px;
   left: 12px;
   z-index: 3;
-  width: min(440px, calc(100% - 96px));
+  /* 오른쪽 위 지도 컨트롤(2D·3D)과 겹치지 않게 자리를 남긴다 */
+  width: min(440px, calc(100% - 136px));
 }
 .mapapp__time {
   position: absolute;
@@ -145,6 +146,22 @@
 .grade-shape--danger {
   fill: var(--grade-danger);
 }
+.grade-glyph--safe {
+  fill: var(--grade-on-safe);
+}
+.grade-glyph--caution {
+  fill: var(--grade-on-caution);
+}
+.grade-glyph--danger {
+  fill: var(--grade-on-danger);
+}
+/* 핀이 겹칠 때는 더 위험한 쪽이 위에 온다 */
+.pin--caution {
+  z-index: 1;
+}
+.pin--danger {
+  z-index: 2;
+}
 .pin {
   display: grid;
   place-items: center;
@@ -161,7 +178,7 @@
   transition: transform 0.15s;
 }
 .pin--selected {
-  z-index: 2;
+  z-index: 3;
 }
 .pin--selected svg {
   transform: scale(1.3);

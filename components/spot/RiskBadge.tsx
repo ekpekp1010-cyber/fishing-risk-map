@@ -37,7 +37,14 @@ export function GradeIcon({ grade, size = 24 }: { grade: Grade; size?: number })
       {grade === 'safe' && <circle cx="16" cy="16" r="13" />}
       {grade === 'caution' && <path d="M16 2.5 30.5 28h-29z" />}
       {grade === 'danger' && <path d="M10 2h12l8 8v12l-8 8H10l-8-8V10z" />}
-      <text x="16" y={grade === 'caution' ? 24 : 20.5} textAnchor="middle" fontSize="12" fontWeight="700" fill="#fff">
+      <text
+        x="16"
+        y={grade === 'caution' ? 24 : 20.5}
+        textAnchor="middle"
+        fontSize="12"
+        fontWeight="700"
+        className={`grade-glyph grade-glyph--${grade}`}
+      >
         {GRADE_GLYPH[grade]}
       </text>
     </svg>

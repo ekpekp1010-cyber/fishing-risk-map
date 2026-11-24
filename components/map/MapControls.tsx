@@ -36,7 +36,7 @@ export default function MapControls({ mode, onMode, layers, onLayers, onLocate }
           className="icon-btn icon-btn--surface"
           aria-label="레이어 선택"
           aria-expanded={open}
-          aria-controls="layer-menu"
+          aria-controls={open ? 'layer-menu' : undefined}
           onClick={() => setOpen((v) => !v)}
         >
           <Icon name="layers" />

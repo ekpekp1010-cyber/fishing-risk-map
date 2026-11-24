@@ -143,6 +143,8 @@ export default function MapView({ spots, selectedId, onSelect, zoneGrades, zones
         paint: { 'line-color': NEUTRAL, 'line-width': 1.5 },
       } as maplibregl.AddLayerObject);
 
+      // 성능 측정용 표시: 페이지를 연 뒤 지도를 조작할 수 있게 되기까지 걸린 시간
+      performance.mark('map-ready');
       setReady(true);
     });
 

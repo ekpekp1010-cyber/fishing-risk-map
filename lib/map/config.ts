@@ -27,10 +27,11 @@ export const MAP_CONFIG = {
   floodTiles: env(process.env.NEXT_PUBLIC_FLOOD_TILES_URL),
 };
 
-// 지도(WebGL) 안에서는 CSS 변수를 쓸 수 없어 등급 색을 값으로 둔다. styles/tokens.css의 등급 색과 맞춘다.
+// 지도 위의 구역과 핀 색. 배경 지도는 화면 테마와 무관하게 항상 밝으므로, 밝은 테마의 등급 색으로 고정한다.
+// styles/tokens.css의 밝은 테마 등급 색과 같은 값이며, 흰 글자와의 대비가 4.5:1 이상이다.
 export const GRADE_COLOR: Record<Grade, string> = {
   safe: '#2E7D32',
-  caution: '#B26A00',
+  caution: '#9A5B00',
   danger: '#B3261E',
 };
 
