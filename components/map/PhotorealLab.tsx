@@ -7,7 +7,7 @@ import dynamic from 'next/dynamic';
 import { useEffect, useMemo, useState } from 'react';
 import type { MapViewState } from '@deck.gl/core';
 import type { PhotorealStats } from './PhotorealView';
-import { PILOT } from '@/lib/map/config';
+import { MAP_CONFIG, PILOT } from '@/lib/map/config';
 import { ensureRealForecast, fixtureSpots, fixtureZoneGrades, fixtureZonesGeoJson } from '@/lib/ui/dev-fixtures';
 import { floorToHourIso } from '@/lib/ui/time';
 import { GRADE_LABEL } from '@/lib/ui/labels';
@@ -26,8 +26,16 @@ const OVERVIEW: MapViewState = {
 
 const sec = (ms: number | null) => (ms === null ? '—' : `${(ms / 1000).toFixed(1)}초`);
 
+/** 실사 타일을 받을지. 브라우저가 데이터 절약을 알리거나 주소에 ?mode=light가 있으면 받지 않는다. */
+function wantsPhotoreal(): boolean {
+  const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData === true;
+  const forcedLight = new URLSearchParams(location.search).get('mode') === 'light';
+  return !saveData && !forcedLight;
+}
+
 export default function PhotorealLab() {
   const [time] = useState(() => floorToHourIso(new Date()));
+  const [photoreal] = useState(wantsPhotoreal);
   const [ready, setReady] = useState(false);
   const [view, setView] = useState<MapViewState>(OVERVIEW);
   const [credits, setCredits] = useState('');
@@ -60,6 +68,7 @@ export default function PhotorealLab() {
     <div className="lab">
       <PhotorealView
         apiKey={API_KEY}
+        photoreal={photoreal}
         view={view}
         spots={spots}
         zones={zones}
@@ -73,11 +82,17 @@ export default function PhotorealLab() {
         <h1>실사 3D 시험</h1>
         {error && <p className="lab__error" role="alert">{error}</p>}
         <dl>
+          <dt>지금 보기</dt>
+          <dd>{stats?.phase === 'photoreal' ? '실사' : photoreal ? '가벼운 지도(실사 받는 중)' : '가벼운 지도만'}</dd>
+          <dt>가벼운 지도</dt>
+          <dd>{sec(stats?.lightReadyAt ?? null)}</dd>
           <dt>루트 타일셋</dt>
           <dd>{sec(stats?.tilesetLoadedAt ?? null)}</dd>
-          <dt>첫 타일</dt>
+          <dt>첫 실사 타일</dt>
           <dd>{sec(stats?.firstTileAt ?? null)}</dd>
-          <dt>받은 타일</dt>
+          <dt>실사로 교체</dt>
+          <dd>{sec(stats?.switchedAt ?? null)}</dd>
+          <dt>받은 실사 타일</dt>
           <dd>{stats?.tilesLoaded ?? 0}건</dd>
           <dt>타일 오류</dt>
           <dd>{stats?.tileErrors ?? 0}건</dd>
@@ -97,8 +112,14 @@ export default function PhotorealLab() {
       </section>
 
       <p className="lab__credits">
-        <strong>Google</strong>
-        {credits && ` · ${credits}`}
+        {stats?.phase === 'photoreal' ? (
+          <>
+            <strong>Google</strong>
+            {credits && ` · ${credits}`}
+          </>
+        ) : (
+          MAP_CONFIG.satelliteAttribution || '항공 사진'
+        )}
       </p>
     </div>
   );
