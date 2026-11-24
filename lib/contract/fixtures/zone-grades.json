@@ -1,0 +1,9 @@
+{
+  "time": "2026-11-25T15:00:00Z",
+  "grades": {
+    "zone-south-jetty-mid": "danger",
+    "zone-nye-beach": "caution",
+    "zone-idaho-flat": "caution",
+    "zone-bay-st-pier": "safe"
+  }
+}

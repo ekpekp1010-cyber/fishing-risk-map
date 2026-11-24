@@ -1,0 +1,46 @@
+{
+  "spot": {
+    "id": "bay-st-pier",
+    "name": "베이 스트리트 부두",
+    "type": "pier",
+    "lat": 44.6302,
+    "lng": -124.0521,
+    "access": { "walkMinutes": 3, "from": "베이프런트 주차장" }
+  },
+  "terrain": {
+    "score": 18,
+    "slopeDeg": 1,
+    "elevationM": 6,
+    "cover": "인공 구조물",
+    "floodFrequency": "low",
+    "factors": [
+      { "code": "egress", "label": "주차장까지 3분, 퇴로 평탄", "score": 10 },
+      { "code": "wave_exposure", "label": "만 안쪽, 파랑이 가려짐", "score": 15 }
+    ]
+  },
+  "hourly": [
+    {
+      "time": "2026-11-25T15:00:00Z",
+      "score": 22,
+      "grade": "safe",
+      "causes": [
+        { "code": "wind", "label": "풍속 7 m/s" },
+        { "code": "rain", "label": "시간당 강수 1.2 mm" }
+      ]
+    },
+    {
+      "time": "2026-11-25T16:00:00Z",
+      "score": 41,
+      "grade": "caution",
+      "causes": [
+        { "code": "wind", "label": "돌풍 15 m/s" },
+        { "code": "rain", "label": "시간당 강수 4.0 mm" },
+        { "code": "dark", "label": "해가 진 시간대, 시야가 어두움" }
+      ]
+    }
+  ],
+  "alerts": [],
+  "forecastFetchedAt": "2026-11-25T07:10:00Z",
+  "stale": true,
+  "confidence": "high"
+}

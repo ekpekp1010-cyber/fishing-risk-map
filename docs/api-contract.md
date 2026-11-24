@@ -146,17 +146,32 @@ B는 이 문서의 예시 응답(`lib/contract/fixtures/`)만으로 화면을 �
 A는 위 네 응답의 예시를 `lib/contract/fixtures/`에 `spots.json`, `spot-risk.json`, `zone-grades.json`, `recommendations.json`으로 둔다.
 세 등급과 `stale: true`, `alerts` 있음, 빈 목록 경우를 각각 하나 이상 포함한다. 좌표와 이름은 예시이며 실제 포인트 목록은 A의 1단계 산출물로 확정한다.
 
+| 파일 | 경우 |
+| --- | --- |
+| `spots.json` | 세 등급 모두 |
+| `spots-empty.json` | 빈 목록 |
+| `spot-risk.json` | `alerts` 있음, 모든 시간 `danger` |
+| `spot-risk-stale.json` | `stale: true`, `alerts` 없음 |
+| `zone-grades.json` | 구역 등급 |
+| `recommendations.json`, `recommendations-empty.json` | 추천 있음, 빈 목록 |
+
+- 타입: `lib/contract/types.ts`. 타입이 붙은 예시는 `lib/contract/fixtures/index.ts`에서 가져온다.
+- 예시의 값 규칙은 `pytest pipeline/tests`의 `test_contract_fixtures.py`가 검사한다.
+- 서버 환경 변수 이름은 `.env.example`의 "서버" 구역에 있다.
+
 ## 변경 기록
 
 | 날짜 | 버전 | 내용 |
 | --- | --- | --- |
 | 2026-11-24 | v0 | 첫 초안 |
+| 2026-11-24 | v0 | `lib/contract/types.ts`, fixtures 7개 추가. `ApiErrorResponse`, `ZONES_LAYER`, `ZoneFeatureProperties` 타입 추가(기존 필드 변경 없음) |
 
 ## 요청
 
 상대에게 바라는 변경을 여기에 적는다. 형식: `- [ ] (날짜, 요청자) 무엇을, 왜`
 
-- [ ] (2026-11-24, B) `lib/contract/types.ts`와 `lib/contract/fixtures/`를 올려 주세요. 지금은 화면이 `lib/ui/api-types.ts`, `lib/ui/dev-fixtures.ts`의 임시 타입과 예시 데이터를 씁니다. 올라오면 그쪽으로 바꾸겠습니다.
+- [x] (2026-11-24, B) `lib/contract/types.ts`와 `lib/contract/fixtures/`를 올려 주세요. 지금은 화면이 `lib/ui/api-types.ts`, `lib/ui/dev-fixtures.ts`의 임시 타입과 예시 데이터를 씁니다. 올라오면 그쪽으로 바꾸겠습니다.
+  - (2026-11-24, A) 올렸습니다. 타입 이름은 `lib/ui/api-types.ts`와 같습니다. 포인트 id는 B의 임시 예시(`south-jetty-mid` 등)에 맞췄습니다. `RecommendationItem.grade`는 `danger`를 뺀 타입입니다.
 - [ ] (2026-11-24, B) 지형 타일 주소와 위험 구역 PMTiles 주소를 알려 주세요. `.env.local`의 `NEXT_PUBLIC_TERRAIN_TILES_URL`, `NEXT_PUBLIC_ZONES_PMTILES_URL`에 넣으면 바로 바뀝니다. 구역 도형의 속성 이름은 계약대로 `zoneId`를 씁니다.
 - [ ] (2026-11-24, B) API 네 개가 준비되면 알려 주세요. `NEXT_PUBLIC_USE_FIXTURES=0`으로 바꿔 연결을 확인하겠습니다.
 - [ ] (2026-11-24, B) 가능하면 경사, 과거 침수 흔적 래스터 타일도 부탁합니다. 지금 '경사' 레이어는 지형 음영으로 대신하고 있고, '과거 침수 흔적' 레이어는 꺼져 있습니다.
