@@ -1,0 +1,65 @@
+{
+  "spot": {
+    "id": "south-jetty-mid",
+    "name": "사우스 제티 중간",
+    "type": "jetty",
+    "lat": 44.6131,
+    "lng": -124.0712,
+    "access": { "walkMinutes": 12, "from": "사우스 제티 주차장" }
+  },
+  "terrain": {
+    "score": 64,
+    "slopeDeg": 24,
+    "elevationM": 3,
+    "cover": "암반",
+    "floodFrequency": "high",
+    "factors": [
+      { "code": "slope", "label": "급경사 암반, 경사 24°", "score": 80 },
+      { "code": "low_elevation", "label": "평균해면보다 3 m 높음", "score": 70 },
+      { "code": "wave_exposure", "label": "외해로 열린 방향", "score": 85 }
+    ]
+  },
+  "hourly": [
+    {
+      "time": "2026-11-25T15:00:00Z",
+      "score": 78,
+      "grade": "danger",
+      "causes": [
+        { "code": "alert", "label": "높은 파도 주의보 발효 중" },
+        { "code": "swell", "label": "너울 주기 13초, 파고 2.1 m" },
+        { "code": "slope", "label": "급경사 암반, 물가까지 8 m" }
+      ]
+    },
+    {
+      "time": "2026-11-25T16:00:00Z",
+      "score": 82,
+      "grade": "danger",
+      "causes": [
+        { "code": "alert", "label": "높은 파도 주의보 발효 중" },
+        { "code": "tide", "label": "16:40 만조, 퇴로가 저지대" },
+        { "code": "swell", "label": "너울 주기 13초, 파고 2.3 m" }
+      ]
+    },
+    {
+      "time": "2026-11-25T17:00:00Z",
+      "score": 66,
+      "grade": "danger",
+      "causes": [
+        { "code": "alert", "label": "높은 파도 주의보 발효 중" },
+        { "code": "swell", "label": "너울 주기 12초, 파고 1.8 m" },
+        { "code": "dark", "label": "해가 진 시간대, 시야가 어두움" }
+      ]
+    }
+  ],
+  "alerts": [
+    {
+      "source": "NWS",
+      "event": "High Surf Advisory",
+      "headline": "높은 파도 주의보 발효 중",
+      "expires": "2026-11-26T06:00:00Z"
+    }
+  ],
+  "forecastFetchedAt": "2026-11-25T14:10:00Z",
+  "stale": false,
+  "confidence": "medium"
+}

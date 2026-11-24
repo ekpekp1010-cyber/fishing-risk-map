@@ -1,0 +1,27 @@
+{
+  "time": "2026-11-25T15:00:00Z",
+  "items": [
+    {
+      "id": "bay-st-pier",
+      "name": "베이 스트리트 부두",
+      "type": "pier",
+      "lat": 44.6302,
+      "lng": -124.0521,
+      "score": 22,
+      "grade": "safe",
+      "walkMinutes": 3,
+      "reason": "파랑이 가려지는 만 안쪽, 주차장에서 3분"
+    },
+    {
+      "id": "nye-beach",
+      "name": "나이 비치",
+      "type": "beach",
+      "lat": 44.6408,
+      "lng": -124.0638,
+      "score": 52,
+      "grade": "caution",
+      "walkMinutes": 4,
+      "reason": "완만한 모래 해변, 주차장에서 4분"
+    }
+  ]
+}
