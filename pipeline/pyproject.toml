@@ -1,0 +1,14 @@
+[project]
+name = "fishrisk-pipeline"
+version = "0.0.1"
+description = "낚시 포인트 위험도: 위성·지형 분석 배치"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+# 저장소 루트에서 `pytest pipeline/tests`로 실행해도 fishrisk 패키지를 찾게 한다.
+pythonpath = ["."]
+testpaths = ["tests"]

@@ -1,0 +1,3 @@
+# pip install -e 산출물
+*.egg-info/
+build/
