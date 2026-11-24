@@ -101,8 +101,14 @@
   top: 12px;
   left: 12px;
   z-index: 3;
-  /* 오른쪽 위 지도 컨트롤(2D·3D)과 겹치지 않게 자리를 남긴다 */
-  width: min(440px, calc(100% - 136px));
+  /* 오른쪽 위 지도 컨트롤(2D·3D)과 겹치지 않게 자리를 남긴다. 필터 칩이 한 줄에 다 보이도록 검색창보다 넓게 잡는다 */
+  width: min(520px, calc(100% - 136px));
+  /* 빈 자리는 지도 조작을 막지 않는다 */
+  pointer-events: none;
+}
+.mapapp__top > :not(.search),
+.search > * {
+  pointer-events: auto;
 }
 .mapapp__time {
   position: absolute;
@@ -114,7 +120,8 @@
 .legend {
   position: absolute;
   right: 12px;
-  bottom: calc(88px + var(--sheet-h));
+  /* 시간 슬라이더 바로 위는 출처 표기 줄이라, 그 위에 둔다 */
+  bottom: calc(120px + var(--sheet-h));
   z-index: 2;
   display: flex;
   gap: 12px;
@@ -145,20 +152,35 @@
   pointer-events: none;
 }
 .live-chip,
-.wave-legend {
+.wave-legend,
+.alert-chip {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   width: fit-content;
+  max-width: 100%;
   margin-top: 8px;
   margin-right: 8px;
   padding: 6px 12px;
-  border-radius: var(--md-shape-full);
+  /* 좁은 화면에서 두 줄이 되어도 모양이 어색하지 않게 하고, 낱말 중간에서 끊지 않는다 */
+  border-radius: var(--md-shape-lg);
+  word-break: keep-all;
   background: var(--md-surface-container-lowest);
   box-shadow: var(--md-elevation-1);
   font: var(--md-label-medium);
 }
+/* 발효 중인 공식 경보. 전 포인트가 '위험'이 되는 이유라서 따로 한 줄을 쓴다 */
+.alert-chip {
+  display: flex;
+  background: var(--md-error-container);
+  color: var(--md-on-error-container);
+  font-weight: 700;
+}
+.alert-chip svg {
+  flex: none;
+}
 .live-chip__dot {
+  flex: none;
   width: 8px;
   height: 8px;
   border-radius: 50%;
@@ -241,6 +263,10 @@
   box-shadow: var(--md-elevation-3);
   color: var(--md-on-surface-variant);
 }
+.searchbar,
+.search__results {
+  max-width: 440px;
+}
 .searchbar:focus-within {
   outline: 3px solid var(--md-primary);
 }
@@ -286,6 +312,8 @@
 .chips {
   display: flex;
   gap: 8px;
+  width: fit-content;
+  max-width: 100%;
   margin-top: 8px;
   padding: 8px 0;
   overflow-x: auto;
@@ -763,8 +791,9 @@
   .mapapp {
     grid-template-columns: minmax(0, 1fr);
   }
+  /* 손잡이 32 + 제목 28 + 부제 20에 여백을 더한 높이. 그 아래 줄이 반쯤 잘려 보이지 않게 한다 */
   .mapapp[data-sheet='collapsed'] {
-    --sheet-h: 104px;
+    --sheet-h: 92px;
   }
   .mapapp[data-sheet='half'] {
     --sheet-h: 46%;
@@ -813,11 +842,32 @@
   .mapapp__top {
     width: calc(100% - 24px);
   }
+  .searchbar,
+  .search__results {
+    max-width: none;
+  }
   .controls {
     top: 132px;
   }
+  /* 검색 아래 줄은 오른쪽의 2D·3D 버튼, 그 아래 줄은 레이어 버튼 옆이라 그만큼 비운다 */
+  .live-chip,
+  .wave-legend {
+    max-width: calc(100% - 108px);
+  }
+  .alert-chip {
+    max-width: calc(100% - 64px);
+  }
+  /* 오른쪽은 지도 컨트롤이 세로로 차지하므로 범례는 왼쪽에 둔다 */
   .legend {
+    right: auto;
+    left: 12px;
     bottom: calc(156px + var(--sheet-h));
+  }
+}
+/* 시트를 반쯤 열면 지도가 낮아져 범례가 위쪽 칩과 겹친다. 이때 등급은 시트의 배지가 알려 준다 */
+@media (max-width: 599px), (max-width: 839px) and (max-height: 720px) {
+  .mapapp[data-sheet='half'] .legend {
+    display: none;
   }
 }
 @media (max-width: 599px) {
@@ -827,6 +877,11 @@
   }
   .legend {
     font: var(--md-label-small);
+  }
+  /* 출처 표기가 지도를 덜 가리게 한다. 지도를 끌면 (i) 버튼으로 접힌다 */
+  .mapview .maplibregl-ctrl-attrib {
+    font-size: 11px;
+    line-height: 16px;
   }
 }
 

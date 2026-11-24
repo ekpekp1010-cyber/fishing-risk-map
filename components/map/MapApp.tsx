@@ -8,13 +8,13 @@ import TimeSlider from './TimeSlider';
 import RecommendList from '@/components/spot/RecommendList';
 import { GradeIcon } from '@/components/spot/RiskBadge';
 import SpotSheet from '@/components/spot/SpotSheet';
-import { retry, USE_FIXTURES, useApi, useLastReady, type ApiRequest } from '@/lib/hooks/api';
+import { retry, USE_FIXTURES, useApi, useLastReady, useRegionAlerts, type ApiRequest } from '@/lib/hooks/api';
 import { DEFAULT_LAYERS, LIVE, PILOT, inPilotBbox, type LayerState } from '@/lib/map/config';
 import { liveSummary, loadLiveGrid, WAVE_STOPS, type LiveGrid } from '@/lib/map/live';
 import type { Grade, SpotSummary, SpotType } from '@/lib/contract/types';
 import { fixtureZonesGeoJson } from '@/lib/ui/dev-fixtures';
 import { GRADE_LABEL, TYPE_LABEL } from '@/lib/ui/labels';
-import { addHoursIso, floorToHourIso, formatClock, HOURS_AHEAD } from '@/lib/ui/time';
+import { addHoursIso, floorToHourIso, formatClock, formatPlaceTime, HOURS_AHEAD } from '@/lib/ui/time';
 
 const WAVE_MAX = WAVE_STOPS[WAVE_STOPS.length - 1][0];
 const WAVE_GRADIENT = `linear-gradient(to right, ${WAVE_STOPS.map(([h, c]) => `${c} ${(h / WAVE_MAX) * 100}%`).join(', ')})`;
@@ -121,6 +121,10 @@ export default function MapApp() {
   const zonesRes = useApi<'zoneGrades'>({ kind: 'zoneGrades', time: queryTime });
   const lastZones = useLastReady('zoneGrades');
   const zoneGrades = zonesRes.status === 'ready' ? zonesRes.data.grades : (lastZones?.grades ?? null);
+
+  // 선택한 시각에 발효 중인 경보. 전 포인트가 '위험'으로 바뀌는 이유라서 지도 위에 항상 보여 준다.
+  const alerts = useRegionAlerts(allSpots[0]?.id ?? null, baseTime, HOURS_AHEAD, time);
+  const alert = alerts[0] ?? null;
 
   const visibleSpots = useMemo(
     () => allSpots.filter((s) => (types.length === 0 || types.includes(s.type)) && (!safeOnly || s.grade === 'safe')),
@@ -230,9 +234,19 @@ export default function MapApp() {
           {live && (
             <p className="live-chip" role="status">
               <span className="live-chip__dot" aria-hidden="true" />
-              실시간 {formatClock(live.observedAt)}
+              {/* 포인트 상세의 수치(그 포인트의 시간별 예보)와 다른 값이라, 어디의 값인지 적는다. */}
+              일대 실시간 {formatClock(live.observedAt)}
               {live.windSpeed !== null && ` · 바람 ${live.windSpeed.toFixed(1)} m/s`}
-              {live.waveHeight !== null && ` · 파고 ${live.waveHeight.toFixed(1)} m`}
+              {live.waveHeight !== null && ` · 앞바다 파고 ${live.waveHeight.toFixed(1)} m`}
+            </p>
+          )}
+          {alert && (
+            <p className="alert-chip" role="status">
+              <GradeIcon grade="danger" size={18} />
+              <span>
+                {alert.headline} · {formatPlaceTime(alert.expires, baseTime)}까지
+                {alerts.length > 1 && ` 외 ${alerts.length - 1}건`}
+              </span>
             </p>
           )}
           {layers.waves && (
@@ -315,7 +329,9 @@ export default function MapApp() {
             title="더 안전한 곳"
             lead="같은 시간대에 지금 포인트보다 위험 점수가 낮은 곳입니다."
             time={queryTime}
+            baseTime={baseTime}
             center={recommendCenter}
+            alert={alert}
             excludeSpotId={selectedId}
             onPick={(item) => selectSpot(item.id, item)}
             onBack={() => setPanel('detail')}
@@ -326,7 +342,9 @@ export default function MapApp() {
             title="추천 포인트"
             lead="선택한 시간대에 위험이 낮고 접근이 쉬운 곳입니다."
             time={queryTime}
+            baseTime={baseTime}
             center={recommendCenter}
+            alert={alert}
             onPick={(item) => selectSpot(item.id, item)}
           />
         )}

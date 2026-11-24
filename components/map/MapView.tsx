@@ -370,6 +370,9 @@ export default function MapView({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready || !focus) return;
+    // 출처 표기는 지도를 끌면 (i) 버튼으로 접힌다. 포인트를 골라 이동할 때도 같은 조작으로 보고 접어,
+    // 시트가 올라와 좁아진 지도를 가리지 않게 한다. (i)를 누르면 다시 펼쳐진다.
+    map.getContainer().querySelector('.maplibregl-ctrl-attrib.maplibregl-compact')?.classList.remove('maplibregl-compact-show');
     if (focus.zoom !== undefined) {
       map.flyTo({ center: [focus.lng, focus.lat], zoom: focus.zoom, pitch: 35, duration: 1400 });
     } else {
