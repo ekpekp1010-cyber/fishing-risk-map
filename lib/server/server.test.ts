@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import spotRiskFixture from '../contract/fixtures/spot-risk.json';
 import { addHours, buildSpotRisk, buildSpots, floorHour, localClock, nextHighTide } from './assemble';
+import { isoZ } from './db';
 import type { AlertRow, ForecastHourlyRow, SpotRow, TerrainScoreRow } from './db-types';
 import { ApiError, parseBbox, parseIntIn, parseTime } from './http';
 import { headlineKo, parseAlerts } from './nws';
@@ -117,6 +118,15 @@ describe('nws', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ id: 'a', headline: '높은 파도 주의보 발효 중', expires: '2026-11-26T06:00:00Z' });
     expect(headlineKo('Unknown Event')).toBe('Unknown Event 발효 중');
+  });
+});
+
+describe('db', () => {
+  it('Postgres 시각 표기를 Z 형식으로 맞춘다', () => {
+    expect(isoZ('2026-11-24 08:00:00+00')).toBe('2026-11-24T08:00:00Z');
+    expect(isoZ('2026-11-24T08:00:00+00:00')).toBe('2026-11-24T08:00:00Z');
+    expect(isoZ('2026-11-24T08:27:51.949+00:00')).toBe('2026-11-24T08:27:51.949Z');
+    expect(isoZ(null)).toBeNull();
   });
 });
 

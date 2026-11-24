@@ -18,6 +18,13 @@ function check<T>(r: { data: T | null; error: { message: string } | null }): T {
   return r.data as T;
 }
 
+/** Postgres timestamptz("2026-11-24 08:00:00+00" 또는 "...+00:00") → "2026-11-24T08:00:00Z". 코드 전체가 이 형식으로 비교한다. */
+export function isoZ<T extends string | null>(v: T): T {
+  if (v === null) return v;
+  const t = Date.parse(v);
+  return (Number.isNaN(t) ? v : new Date(t).toISOString().replace('.000Z', 'Z')) as T;
+}
+
 const SPOT_COLS = 'id,name,type,lat,lng,access_walk_minutes,access_from,forecast_cell_id,active';
 const TERRAIN_COLS =
   'spot_id,score,slope_deg,elevation_m,cover,flood_frequency,egress_min_elevation_m,factors,confidence';
@@ -51,7 +58,7 @@ export async function listTerrain(spotIds: string[]): Promise<TerrainScoreRow[]>
 /** 셀들의 [from, to) 시간 범위 예보 */
 export async function listForecast(cellIds: string[], from: string, to: string): Promise<ForecastHourlyRow[]> {
   if (cellIds.length === 0) return [];
-  return check(
+  const rows: ForecastHourlyRow[] = check(
     await db()
       .from('forecast_hourly')
       .select('*')
@@ -60,13 +67,13 @@ export async function listForecast(cellIds: string[], from: string, to: string):
       .lt('time', to)
       .order('time'),
   );
+  return rows.map((r) => ({ ...r, time: isoZ(r.time), fetched_at: isoZ(r.fetched_at) }));
 }
 
 /** from 시각 이후에도 유효한 경보(만료 시각이 없으면 계속 유효로 본다) */
 export async function listAlerts(from: string): Promise<AlertRow[]> {
-  return check(
-    await db().from('alerts').select('*').or(`expires.is.null,expires.gt.${from}`),
-  );
+  const rows: AlertRow[] = check(await db().from('alerts').select('*').or(`expires.is.null,expires.gt.${from}`));
+  return rows.map((a) => ({ ...a, onset: isoZ(a.onset), expires: isoZ(a.expires), fetched_at: isoZ(a.fetched_at) }));
 }
 
 export async function upsertForecast(rows: ForecastHourlyRow[]): Promise<number> {
