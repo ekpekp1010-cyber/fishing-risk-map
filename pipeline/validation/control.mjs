@@ -1,7 +1,7 @@
 // 게이트 2 대조군: 사고 지점 6곳에서 2023~2025년 매일 현지 정오(20시 UTC, 겨울 기준)의 등급 분포.
 // 사고 시각에만 위험이 나오고 평소에는 낮게 나오는지(변별력) 본다.
 //
-//   node pipeline/validation/control.mjs     (gate2.mjs를 한 번 돌려 out/risk-cjs가 있어야 한다)
+//   node pipeline/validation/control.mjs     (gate2.mjs를 한 번 돌려 node_modules/.cache/fishrisk-risk-cjs가 있어야 한다)
 // 결과: pipeline/validation/control_results.md
 
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const require = createRequire(import.meta.url);
-const { computeHourlyRisk } = require(join(ROOT, 'pipeline/out/risk-cjs/risk/index.js'));
+const { computeHourlyRisk } = require(join(ROOT, 'node_modules/.cache/fishrisk-risk-cjs/risk/index.js'));
 
 const YEARS = [2023, 2024, 2025];
 const START = `${YEARS[0]}-01-01`, END = `${YEARS.at(-1)}-12-31`;

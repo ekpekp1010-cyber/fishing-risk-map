@@ -20,7 +20,8 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const OUT = join(ROOT, 'pipeline/out/incidents');
-const CJS = join(ROOT, 'pipeline/out/risk-cjs');
+// 컴파일 결과는 lint 대상이 아닌 node_modules/.cache에 둔다.
+const CJS = join(ROOT, 'node_modules/.cache/fishrisk-risk-cjs');
 
 // lib/risk를 CommonJS로 컴파일해 그대로 쓴다(운영 코드와 같은 계산).
 if (!existsSync(join(CJS, 'risk/index.js'))) {
