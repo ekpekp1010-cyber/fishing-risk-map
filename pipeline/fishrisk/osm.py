@@ -17,7 +17,11 @@ from pathlib import Path
 
 from .config import AOI, BBox, is_excluded
 
-OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+OVERPASS_URLS = (
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
+    "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+)
 USER_AGENT = "fishing-risk-map-pipeline/0.1"
 OUT_DIR = Path(__file__).resolve().parents[1] / "out"
 
@@ -34,7 +38,7 @@ def build_query(box: BBox = AOI) -> str:
   nwr["leisure"~"^(fishing|slipway)$"]({b});
   nwr["amenity"="parking"]({b});
 );
-out center tags;
+out geom;
 """.strip()
 
 
@@ -47,6 +51,8 @@ class Candidate:
     lng: float
     tags: dict
     excluded: str | None  # 제외 구역 이름
+    # 선·면 요소의 꼭짓점 [(lat, lng), ...]. 관계(relation)는 outer 구성원을 이어 붙인다.
+    geometry: tuple[tuple[float, float], ...] = ()
 
 
 def classify(tags: dict) -> str | None:
@@ -71,12 +77,28 @@ def classify(tags: dict) -> str | None:
     return None
 
 
-def _position(el: dict) -> tuple[float, float] | None:
+def _geometry(el: dict) -> list[tuple[float, float]]:
+    if "geometry" in el:
+        return [(p["lat"], p["lon"]) for p in el["geometry"] if p]
+    pts: list[tuple[float, float]] = []
+    for m in el.get("members", []):
+        if m.get("role", "outer") in ("outer", "") and "geometry" in m:
+            pts.extend((p["lat"], p["lon"]) for p in m["geometry"] if p)
+    return pts
+
+
+def _position(el: dict, geom: list[tuple[float, float]]) -> tuple[float, float] | None:
     if "lat" in el and "lon" in el:
         return el["lat"], el["lon"]
     c = el.get("center")
     if c:
         return c["lat"], c["lon"]
+    b = el.get("bounds")
+    if not geom and b:
+        return (b["minlat"] + b["maxlat"]) / 2, (b["minlon"] + b["maxlon"]) / 2
+    if geom:
+        # 꼭짓점 평균(면은 대략적인 중심, 선은 중간쯤)
+        return sum(p[0] for p in geom) / len(geom), sum(p[1] for p in geom) / len(geom)
     return None
 
 
@@ -86,7 +108,9 @@ def parse(payload: dict, box: BBox = AOI) -> list[Candidate]:
     for el in payload.get("elements", []):
         tags = el.get("tags") or {}
         kind = classify(tags)
-        pos = _position(el)
+        # 시범 지역 밖으로 길게 이어진 해변·갯벌은 지역 안의 꼭짓점만 쓴다.
+        geom = [p for p in _geometry(el) if box.contains(*p)]
+        pos = _position(el, geom)
         if kind is None or pos is None:
             continue
         lat, lng = pos
@@ -105,6 +129,7 @@ def parse(payload: dict, box: BBox = AOI) -> list[Candidate]:
                 lng=round(lng, 6),
                 tags=tags,
                 excluded=is_excluded(lat, lng),
+                geometry=tuple((round(a, 6), round(b, 6)) for a, b in geom),
             )
         )
     out.sort(key=lambda c: (c.kind, -c.lat, c.lng))
@@ -117,6 +142,7 @@ def to_geojson(cands: list[Candidate]) -> dict:
         props = asdict(c)
         props.pop("lat")
         props.pop("lng")
+        props.pop("geometry")
         features.append(
             {
                 "type": "Feature",
@@ -127,11 +153,19 @@ def to_geojson(cands: list[Candidate]) -> dict:
     return {"type": "FeatureCollection", "features": features}
 
 
-def fetch(query: str, url: str = OVERPASS_URL, timeout: int = 90) -> dict:
+def fetch(query: str, urls: tuple[str, ...] = OVERPASS_URLS, timeout: int = 90) -> dict:
+    """공개 Overpass 서버를 차례로 시도한다(일시적인 502·504가 잦다)."""
     body = urllib.parse.urlencode({"data": query}).encode()
-    req = urllib.request.Request(url, data=body, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return json.load(resp)
+    last: Exception | None = None
+    for url in urls:
+        try:
+            req = urllib.request.Request(url, data=body, headers={"User-Agent": USER_AGENT})
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return json.load(resp)
+        except Exception as e:  # noqa: BLE001 - 다음 서버로 넘어간다
+            print(f"Overpass 실패({url}): {e}", file=sys.stderr)
+            last = e
+    raise RuntimeError("모든 Overpass 서버가 실패했다") from last
 
 
 def main(argv: list[str]) -> int:

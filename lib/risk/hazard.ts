@@ -7,6 +7,7 @@ import {
   DARK_SCORE,
   HAZARD_WEIGHTS,
   type HazardCode,
+  MIN_WAVE_EXPOSURE,
   SWELL_MIN_HEIGHT_M,
   THUNDER_CODES,
 } from './constants';
@@ -40,6 +41,11 @@ export interface SpotProfile {
   /** 퇴로 경로의 가장 낮은 고도(m). 모르면 null */
   egressMinElevationM: number | null;
   slopeDeg: number;
+  /**
+   * 외해 파랑이 이 포인트까지 들어오는 정도(0~1). 지형 요인 wave_exposure 점수/100.
+   * 예보 파고는 바다 격자 값이므로 만 안쪽 포인트에서는 이만큼 줄여 본다. 모르면 1(위험한 쪽).
+   */
+  waveExposure?: number;
 }
 
 export interface HazardFactor {
@@ -98,11 +104,19 @@ export function computeHazard(c: HourConditions, spot: SpotProfile): HazardResul
     if (s > 0) factors.push({ code, score: s, label });
   };
 
-  if (has(c.waveHeightM)) add('wave', scale(c.waveHeightM, BREAKPOINTS.wave), `유의파고 ${fmt1(c.waveHeightM)} m`);
+  const exposure = Math.min(1, Math.max(MIN_WAVE_EXPOSURE, spot.waveExposure ?? 1));
+  const sheltered = exposure < 1 ? ' (외해 기준, 이곳은 파랑이 줄어듦)' : '';
+  if (has(c.waveHeightM)) {
+    add('wave', exposure * scale(c.waveHeightM, BREAKPOINTS.wave), `유의파고 ${fmt1(c.waveHeightM)} m${sheltered}`);
+  }
 
   const swellH = has(c.swellHeightM) ? c.swellHeightM : c.waveHeightM;
   if (has(c.swellPeriodS) && has(swellH) && swellH >= SWELL_MIN_HEIGHT_M) {
-    add('swell', scale(c.swellPeriodS, BREAKPOINTS.swell), `너울 주기 ${Math.round(c.swellPeriodS)}초, 파고 ${fmt1(swellH)} m`);
+    add(
+      'swell',
+      exposure * scale(c.swellPeriodS, BREAKPOINTS.swell),
+      `너울 주기 ${Math.round(c.swellPeriodS)}초, 파고 ${fmt1(swellH)} m${sheltered}`,
+    );
   }
 
   if (has(c.windSpeedMs) || has(c.windGustMs)) {

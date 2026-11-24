@@ -41,6 +41,12 @@ export const BREAKPOINTS = {
   heat: [[26, 0], [31, 40], [35, 70], [40, 100]],
 } as const satisfies Record<string, Breakpoints>;
 
+/**
+ * 파랑·너울 점수에 곱하는 노출 정도의 하한. 만 안쪽이라도 큰 너울은 일부 들어온다고 본다(정한 값).
+ * 노출 정도 = 지형 요인 wave_exposure 점수 / 100.
+ */
+export const MIN_WAVE_EXPOSURE = 0.25;
+
 /** 너울 주기를 따지는 최소 파고(m). PRD: 파고 1 m 이상일 때 */
 export const SWELL_MIN_HEIGHT_M = 1.0;
 

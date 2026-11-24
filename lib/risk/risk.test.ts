@@ -96,6 +96,15 @@ describe('computeHazard', () => {
     expect(computeHazard({ ...calm, windSpeedMs: 5, windGustMs: 14 }, pier).byCode.wind).toBe(70);
   });
 
+  it('만 안쪽 포인트는 파랑·너울 점수를 노출 정도만큼 줄인다(하한 0.25)', () => {
+    const c = { ...calm, waveHeightM: 2.0, swellHeightM: 2.0, swellPeriodS: 14 };
+    expect(computeHazard(c, { ...pier, waveExposure: 0.5 }).byCode.wave).toBe(35);
+    expect(computeHazard(c, { ...pier, waveExposure: 0.5 }).byCode.swell).toBe(35);
+    expect(computeHazard(c, { ...pier, waveExposure: 0 }).byCode.wave).toBeCloseTo(17.5);
+    expect(computeHazard(c, pier).byCode.wave).toBe(70);
+    expect(computeHazard(c, { ...pier, waveExposure: 0.5 }).factors[0].label).toContain('이곳은 파랑이 줄어듦');
+  });
+
   it('빠진 핵심 예보를 기록한다', () => {
     const h = computeHazard({ ...calm, waveHeightM: null, seaLevelM: null }, pier);
     expect(h.missing).toEqual(['wave', 'seaLevel']);

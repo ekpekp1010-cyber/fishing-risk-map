@@ -82,7 +82,14 @@ export function toProfile(spot: SpotRow, t: TerrainScoreRow): SpotProfile {
     elevationM: t.elevation_m ?? 0,
     egressMinElevationM: t.egress_min_elevation_m,
     slopeDeg: t.slope_deg ?? 0,
+    waveExposure: waveExposureOf(t),
   };
+}
+
+/** 지형 요인 wave_exposure 점수(0~100)를 0~1로. 없으면 1(위험한 쪽). */
+export function waveExposureOf(t: TerrainScoreRow): number {
+  const f = t.factors.find((x) => x.code === 'wave_exposure');
+  return f ? f.score / 100 : 1;
 }
 
 export function toTerrainInput(t: TerrainScoreRow): TerrainInput {
