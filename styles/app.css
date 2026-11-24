@@ -145,6 +145,22 @@
 .grade-shape--danger {
   fill: var(--grade-danger);
 }
+.grade-glyph--safe {
+  fill: var(--grade-on-safe);
+}
+.grade-glyph--caution {
+  fill: var(--grade-on-caution);
+}
+.grade-glyph--danger {
+  fill: var(--grade-on-danger);
+}
+/* 핀이 겹칠 때는 더 위험한 쪽이 위에 온다 */
+.pin--caution {
+  z-index: 1;
+}
+.pin--danger {
+  z-index: 2;
+}
 .pin {
   display: grid;
   place-items: center;
@@ -161,7 +177,7 @@
   transition: transform 0.15s;
 }
 .pin--selected {
-  z-index: 2;
+  z-index: 3;
 }
 .pin--selected svg {
   transform: scale(1.3);

@@ -34,12 +34,16 @@
   --grade-safe: #2e7d32;
   --grade-safe-container: #c8e6c9;
   --grade-on-safe-container: #0d3b12;
-  --grade-caution: #b26a00;
+  --grade-caution: #9a5b00;
   --grade-caution-container: #ffe0a6;
   --grade-on-caution-container: #3f2600;
   --grade-danger: var(--md-error);
   --grade-danger-container: var(--md-error-container);
   --grade-on-danger-container: var(--md-on-error-container);
+  /* 등급 색 위에 올리는 글자 색. 대비 4.5:1 이상을 유지한다. */
+  --grade-on-safe: #ffffff;
+  --grade-on-caution: #ffffff;
+  --grade-on-danger: var(--md-on-error);
 
   /* 글자 */
   --md-font: Roboto, 'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
@@ -107,6 +111,8 @@
     --grade-caution: #ffb74d;
     --grade-caution-container: #6b4300;
     --grade-on-caution-container: #ffe0a6;
+    --grade-on-safe: #0d3b12;
+    --grade-on-caution: #3f2600;
 
     color-scheme: dark;
   }

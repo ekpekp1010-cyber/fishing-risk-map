@@ -28,7 +28,7 @@ export default function SearchFilters({ spots, query, onQuery, types, onToggleTy
           onChange={(e) => onQuery(e.target.value)}
           placeholder="포인트 이름, 장소 유형 검색"
           aria-label="포인트 검색"
-          aria-controls="search-results"
+          aria-controls={q ? 'search-results' : undefined}
         />
         {query && (
           <button type="button" className="icon-btn icon-btn--small" aria-label="검색어 지우기" onClick={() => onQuery('')}>

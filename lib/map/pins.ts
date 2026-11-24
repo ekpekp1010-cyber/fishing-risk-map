@@ -1,3 +1,4 @@
+import { GRADE_COLOR } from './config';
 import type { Grade } from '@/lib/ui/api-types';
 import { GRADE_GLYPH } from '@/lib/ui/labels';
 
@@ -13,7 +14,7 @@ const TEXT_Y: Record<Grade, number> = { safe: 20.5, caution: 23.5, danger: 20.5 
 export function gradeShapeSvg(grade: Grade, size = 32): string {
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="${size}" height="${size}" aria-hidden="true" focusable="false">` +
-    `<g class="grade-shape grade-shape--${grade}" stroke="#fff" stroke-width="2" stroke-linejoin="round">${SHAPE[grade]}</g>` +
+    `<g fill="${GRADE_COLOR[grade]}" stroke="#fff" stroke-width="2" stroke-linejoin="round">${SHAPE[grade]}</g>` +
     `<text x="16" y="${TEXT_Y[grade]}" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">${GRADE_GLYPH[grade]}</text>` +
     `</svg>`
   );
