@@ -28,6 +28,7 @@ B는 이 문서의 예시 응답(`lib/contract/fixtures/`)만으로 화면을 �
 `GET /api/spots?bbox=<서>,<남>,<동>,<북>&time=<시각>`
 
 지도 화면 범위 안의 포인트와 그 시각의 등급을 돌려준다. `time`을 생략하면 현재 정시다.
+`alerts`는 그 시각에 발효 중인 경보 목록이다(모양은 2번 상세 응답의 `alerts`와 같다). 하나라도 있으면 모든 포인트가 `danger`다. 실제 API는 항상 넣어 보낸다(없으면 `[]`).
 
 ```json
 {
@@ -43,7 +44,8 @@ B는 이 문서의 예시 응답(`lib/contract/fixtures/`)만으로 화면을 �
       "grade": "danger",
       "confidence": "medium"
     }
-  ]
+  ],
+  "alerts": []
 }
 ```
 
@@ -109,6 +111,18 @@ B는 이 문서의 예시 응답(`lib/contract/fixtures/`)만으로 화면을 �
 - 도형 속성: `zoneId`(문자열), `spotId`(문자열, 없을 수 있음)
 - 지형 타일 주소: 환경 변수 `NEXT_PUBLIC_TERRAIN_TILES_URL` (terrain-RGB, `{z}/{x}/{y}` 형식)
 
+현재 주소(Supabase Storage 공개 버킷 `tiles`, 1시간 캐시):
+
+| 변수 | 값 |
+| --- | --- |
+| `NEXT_PUBLIC_ZONES_PMTILES_URL` | `https://rjzlcrxxkjkpkgazreff.supabase.co/storage/v1/object/public/tiles/zones.pmtiles` |
+| `NEXT_PUBLIC_TERRAIN_TILES_URL` | `https://rjzlcrxxkjkpkgazreff.supabase.co/storage/v1/object/public/tiles/terrain/{z}/{x}/{y}.png` |
+
+- 구역 PMTiles: 벡터, 줌 11~16, 구역 49개(포인트마다 하나). `zoneId`는 `zone-<spotId>` 꼴이다.
+- 지형 타일: Mapbox terrain-RGB 인코딩(`height = -10000 + (R·65536 + G·256 + B) × 0.1`), PNG 256 px, 줌 8~14,
+  범위 서경 124.2034~123.9924, 북위 44.5701~44.7090. 범위 밖 타일은 없다(Storage가 400을 돌려준다).
+  원천은 Copernicus DEM GLO-30(30 m 표면 모델)이라 줌 13 이상은 보간이다.
+
 `GET /api/zones/grades?time=<시각>`
 
 구역에 포인트(`spotId`)가 있으면 그 포인트의 등급이다. 포인트가 없는 구역은 구역의 지형 점수로 계산하되 고도를 몰라 위험한 쪽으로 본다. 지형 점수가 없는 구역은 `grades`에 없다(화면은 회색 등 '정보 없음'으로 그린다).
@@ -157,6 +171,7 @@ A는 위 네 응답의 예시를 `lib/contract/fixtures/`에 `spots.json`, `spot
 | --- | --- |
 | `spots.json` | 세 등급 모두 |
 | `spots-empty.json` | 빈 목록 |
+| `spots-alert.json` | 경보 발효 중, 모든 포인트 `danger` |
 | `spot-risk.json` | `alerts` 있음, 모든 시간 `danger` |
 | `spot-risk-stale.json` | `stale: true`, `alerts` 없음 |
 | `zone-grades.json` | 구역 등급 |
@@ -171,6 +186,7 @@ A는 위 네 응답의 예시를 `lib/contract/fixtures/`에 `spots.json`, `spot
 | 날짜 | 버전 | 내용 |
 | --- | --- | --- |
 | 2026-11-24 | v0 | 첫 초안 |
+| 2026-11-24 | v0 | `SpotsResponse.alerts` 추가(B 요청), 예시 `spots-alert.json` 추가 |
 | 2026-11-24 | v0 | `/api/zones/grades`, `/api/recommendations` 구현. 원인 코드 `no_forecast` 추가(필드 변경 없음) |
 | 2026-11-24 | v0 | 오류 코드 `FORECAST_UNAVAILABLE`(503) 추가. `/api/spots`, `/api/spots/{id}/risk` 구현(DB 연결 전) |
 | 2026-11-24 | v0 | `lib/contract/types.ts`, fixtures 7개 추가. `ApiErrorResponse`, `ZONES_LAYER`, `ZoneFeatureProperties` 타입 추가(기존 필드 변경 없음) |
@@ -182,7 +198,9 @@ A는 위 네 응답의 예시를 `lib/contract/fixtures/`에 `spots.json`, `spot
 - [x] (2026-11-24, B) `lib/contract/types.ts`와 `lib/contract/fixtures/`를 올려 주세요. 지금은 화면이 `lib/ui/api-types.ts`, `lib/ui/dev-fixtures.ts`의 임시 타입과 예시 데이터를 씁니다. 올라오면 그쪽으로 바꾸겠습니다.
   - (2026-11-24, A) 올렸습니다. 타입 이름은 `lib/ui/api-types.ts`와 같습니다. 포인트 id는 B의 임시 예시(`south-jetty-mid` 등)에 맞췄습니다. `RecommendationItem.grade`는 `danger`를 뺀 타입입니다.
   - (2026-11-24, B) 전환했습니다. 화면은 이제 `lib/contract/types.ts`만 쓰고 `lib/ui/api-types.ts`는 지웠습니다. 주소에 `?demo=contract`, `?demo=contract-empty`를 붙이면 예시 응답 7개가 화면에 그대로 나옵니다(포인트 4곳, 경보, 데이터 지연, 빈 목록을 확인했습니다). 예시가 한 시각의 고정 응답이라, 시간 슬라이더용으로 `lib/ui/dev-fixtures.ts`의 시뮬레이터는 실제 API가 나올 때까지 남겨 둡니다.
-- [ ] (2026-11-24, B) 지형 타일 주소와 위험 구역 PMTiles 주소를 알려 주세요. `.env.local`의 `NEXT_PUBLIC_TERRAIN_TILES_URL`, `NEXT_PUBLIC_ZONES_PMTILES_URL`에 넣으면 바로 바뀝니다. 구역 도형의 속성 이름은 계약대로 `zoneId`를 씁니다.
+- [ ] (2026-11-24, A) 지형 `raster-dem` 소스에 `tileSize: 256`, `minzoom: 8`, `maxzoom: 14`, `bounds: [-124.2034, 44.5701, -123.9924, 44.7090]`, `encoding: "mapbox"`를 넣어 주세요. 지금은 범위 밖 타일(줌 4~11의 다른 지역)까지 요청해 콘솔에 400 오류가 27건 찍힙니다. 범위 밖은 기존 공개 지형 타일로 채우는 것도 좋습니다.
+- [x] (2026-11-24, B) 지형 타일 주소와 위험 구역 PMTiles 주소를 알려 주세요.
+  - (2026-11-24, A) 위 "현재 주소" 표에 적었습니다. 제 `.env.local`에 넣고 화면을 띄워 보니 지형 타일 요청이 새 주소로 갑니다. `.env.local`의 `NEXT_PUBLIC_TERRAIN_TILES_URL`, `NEXT_PUBLIC_ZONES_PMTILES_URL`에 넣으면 바로 바뀝니다. 구역 도형의 속성 이름은 계약대로 `zoneId`를 씁니다.
 - [ ] (2026-11-24, B) API 네 개가 준비되면 알려 주세요. `NEXT_PUBLIC_USE_FIXTURES=0`으로 바꿔 연결을 확인하겠습니다.
   - (2026-11-24, A) 1·2번 API 코드는 올렸습니다. Supabase에 포인트·지형 점수가 들어가기 전에는 빈 목록이나 오류가 나오니 아직 예시 데이터를 쓰세요. 3·4번은 다음 차례입니다.
   - (2026-11-24, A) DB에 자동 선정 포인트 49곳과 지형 점수를 넣었습니다(사람 검수 전 초안, 이름·위치가 바뀔 수 있음). 이제 `NEXT_PUBLIC_USE_FIXTURES=0`으로 연결 시험을 해도 됩니다. `.env.local`의 `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`가 필요하니 키는 A에게 직접 받으세요(채팅·저장소에 올리지 않기).
@@ -190,5 +208,6 @@ A는 위 네 응답의 예시를 `lib/contract/fixtures/`에 `spots.json`, `spot
   - (2026-11-24, A) 원격 DB에 연결해 1·2번 응답을 확인했습니다. 지금 DB의 포인트는 확인용 `zz-api-check`(이름 "API 확인용", 사우스 제티 위치) 하나뿐이고, 실제 포인트는 1단계 검수 뒤에 넣습니다. 연결 시험 때 이 포인트가 보이는 것은 정상입니다. 예보는 자동 수집 전이라 수집 후 6시간이 지나면 `stale: true`로 나옵니다.
 - [ ] (2026-11-24, B) 실시간 바람·파고 격자를 서버에서 내려 주는 API가 있으면 좋겠습니다. 지금은 지도의 바람 흐름·파고 레이어가 브라우저에서 Open-Meteo를 직접 부릅니다(`lib/map/live.ts`, 7×7 격자, 15분 캐시). 예보 수집기가 이미 같은 값을 모으니, 운영 전에 그쪽 캐시를 쓰도록 바꾸고 싶습니다. 필요한 모양은 `LiveGrid` 타입(경도·위도 목록, 바람 u·v, 파고, 기준 시각)입니다.
 - [ ] (2026-11-24, B) 가능하면 경사, 과거 침수 흔적 래스터 타일도 부탁합니다. 지금 '경사' 레이어는 지형 음영으로 대신하고 있고, '과거 침수 흔적' 레이어는 꺼져 있습니다.
-- [ ] (2026-11-24, B) 포인트 목록 응답(`GET /api/spots`)에 그 시각에 발효 중인 경보 목록 `alerts`를 넣어 주세요(모양은 상세 응답의 `alerts`와 같게). 지도 위와 추천 목록에 "경보 발효 중이라 전 포인트가 위험"이라는 안내를 띄우는데, 지금은 경보가 포인트 상세에만 있어서 목록의 첫 포인트 상세를 한 번 더 불러 읽습니다(`lib/hooks/api.ts`의 `useRegionAlerts`). 필드 추가라 기존 화면에는 영향이 없습니다.
+- [x] (2026-11-24, B) 포인트 목록 응답(`GET /api/spots`)에 그 시각에 발효 중인 경보 목록 `alerts`를 넣어 주세요(모양은 상세 응답의 `alerts`와 같게). 지도 위와 추천 목록에 "경보 발효 중이라 전 포인트가 위험"이라는 안내를 띄우는데, 지금은 경보가 포인트 상세에만 있어서 목록의 첫 포인트 상세를 한 번 더 불러 읽습니다(`lib/hooks/api.ts`의 `useRegionAlerts`). 필드 추가라 기존 화면에는 영향이 없습니다.
+  - (2026-11-24, A) 넣었습니다. `alerts`는 그 시각에 시작했고 아직 끝나지 않은 경보만 담습니다. 예시는 `spots-alert.json`(`fixtures/index.ts`의 `spotsAlert`)입니다. `spots.json`은 세 등급 확인용이라 경보 없이 두었습니다. B의 임시 시뮬레이터가 깨지지 않게 타입은 `alerts?`(선택)로 두었지만 실제 API는 항상 보냅니다.
 

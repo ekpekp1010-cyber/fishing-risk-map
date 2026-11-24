@@ -15,6 +15,7 @@ ALLOWED = {
     "/pipeline/review/review.html": ROOT / "pipeline/review/review.html",
     "/pipeline/review/spots_draft.csv": ROOT / "pipeline/review/spots_draft.csv",
     "/pipeline/out/terrain_scores.json": ROOT / "pipeline/out/terrain_scores.json",
+    "/pipeline/out/tiles/zones.geojson": ROOT / "pipeline/out/tiles/zones.geojson",
 }
 MAPLIBRE = ROOT / "node_modules/maplibre-gl/dist"
 mimetypes.add_type("text/javascript", ".mjs")

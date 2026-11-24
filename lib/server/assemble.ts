@@ -168,7 +168,9 @@ export function buildSpots(
     confidence: r.confidence,
   }));
   out.sort((a, b) => b.lat - a.lat);
-  return { time, spots: out };
+  // 그 시각에 시작했고 아직 끝나지 않은 경보
+  const live = alertsAt(alerts, time).filter((a) => Date.parse(a.expires) > Date.parse(time));
+  return { time, spots: out, alerts: live };
 }
 
 // ---- 3. 구역 등급 ------------------------------------------------------------

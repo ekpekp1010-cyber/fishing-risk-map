@@ -166,6 +166,16 @@ describe('assemble', () => {
     expect(nextHighTide(series, T)).toBe(addHours(T, 3));
   });
 
+  it('목록 응답에 그 시각에 발효 중인 경보만 담는다', () => {
+    const mk = (id: string, onset: string | null, expires: string): AlertRow => ({
+      id, source: 'NWS', event: 'Coastal Flood Advisory', headline: `경보 ${id}`, severity: null, onset, expires, fetched_at: T,
+    });
+    const res = buildSpots(T, [spot], [terrain], [fRow(T)], [mk('now', null, addHours(T, 3)), mk('later', addHours(T, 2), addHours(T, 5)), mk('over', null, T)]);
+    expect(res.alerts?.map((a) => a.headline)).toEqual(['경보 now']);
+    expect(res.spots[0].grade).toBe('danger');
+    expect(buildSpots(T, [spot], [terrain], [fRow(T)], []).alerts).toEqual([]);
+  });
+
   it('지형 분석이 없는 포인트는 목록에서 뺀다', () => {
     const other: SpotRow = { ...spot, id: 'x' };
     const res = buildSpots(T, [spot, other], [terrain], [fRow(T)], []);

@@ -85,6 +85,33 @@ def build_rows() -> tuple[list[dict], list[dict]]:
     return spots, scores
 
 
+def zone_rows(active_ids: set[str]) -> list[dict]:
+    """tiles.py가 만든 out/tiles/zones.geojson → zones 행(geom은 EWKT). 파일이 없으면 빈 목록."""
+    path = OUT_DIR / "tiles" / "zones.geojson"
+    if not path.exists():
+        return []
+    from shapely.geometry import shape
+
+    terrain = {t["spot_id"]: t for t in json.loads((OUT_DIR / "terrain_scores.json").read_text(encoding="utf-8"))}
+    spots = {s.id: s for s in read_review()}
+    rows = []
+    for f in json.loads(path.read_text(encoding="utf-8"))["features"]:
+        sid = f["properties"]["spotId"]
+        if sid not in active_ids:
+            continue
+        s = spots[sid]
+        rows.append(
+            {
+                "id": f["properties"]["zoneId"],
+                "spot_id": sid,
+                "geom": "SRID=4326;" + shape(f["geometry"]).wkt,
+                "terrain_score": terrain[sid]["score"] if sid in terrain else None,
+                "forecast_cell_id": cell_id(s.lat, s.lng),
+            }
+        )
+    return rows
+
+
 def main(argv: list[str]) -> int:
     env = read_env()
     rest = Rest(env["SUPABASE_URL"], env["SUPABASE_SERVICE_ROLE_KEY"])
@@ -96,8 +123,10 @@ def main(argv: list[str]) -> int:
         return 1
     rest.upsert("spots", spots, "id")
     rest.upsert("terrain_scores", scores, "spot_id")
+    zones = zone_rows({s["id"] for s in spots if s["active"]})
+    rest.upsert("zones", zones, "id")
     active = sum(1 for s in spots if s["active"])
-    print(f"spots {len(spots)}곳(활성 {active}), terrain_scores {len(scores)}행 적재")
+    print(f"spots {len(spots)}곳(활성 {active}), terrain_scores {len(scores)}행, zones {len(zones)}개 적재")
     return 0
 
 

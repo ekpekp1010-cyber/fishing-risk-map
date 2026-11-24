@@ -27,6 +27,11 @@ export interface SpotSummary {
 export interface SpotsResponse {
   time: IsoHour;
   spots: SpotSummary[];
+  /**
+   * 그 시각에 발효 중인 경보. 하나라도 있으면 모든 포인트가 "danger"다. (2026-11-24 B 요청으로 추가)
+   * 실제 API는 항상 채워 보낸다(없으면 빈 배열). B의 임시 시뮬레이터와 호환되도록 타입만 선택으로 둔다.
+   */
+  alerts?: RiskAlert[];
 }
 
 // ---- 2. GET /api/spots/{id}/risk ------------------------------------------

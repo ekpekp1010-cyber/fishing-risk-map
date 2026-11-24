@@ -3,7 +3,16 @@ name = "fishrisk-pipeline"
 version = "0.0.1"
 description = "낚시 포인트 위험도: 위성·지형 분석 배치"
 requires-python = ">=3.11"
-dependencies = ["numpy>=2", "rasterio>=1.4", "pyproj>=3.6"]
+dependencies = [
+  "numpy>=2",
+  "rasterio>=1.4",
+  "pyproj>=3.6",
+  "shapely>=2",
+  "mapbox-vector-tile>=2",
+  "pmtiles>=3",
+  "pillow>=10",
+  "mercantile>=1.2",
+]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
