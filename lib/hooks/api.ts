@@ -13,7 +13,13 @@ import type {
   ZoneGradesResponse,
 } from '@/lib/contract/types';
 import * as contractFixtures from '@/lib/contract/fixtures';
-import { fixtureRecommendations, fixtureSpotRisk, fixtureSpots, fixtureZoneGrades } from '@/lib/ui/dev-fixtures';
+import {
+  ensureRealForecast,
+  fixtureRecommendations,
+  fixtureSpotRisk,
+  fixtureSpots,
+  fixtureZoneGrades,
+} from '@/lib/ui/dev-fixtures';
 import { PILOT } from '@/lib/map/config';
 
 export const USE_FIXTURES = process.env.NEXT_PUBLIC_USE_FIXTURES !== '0';
@@ -74,6 +80,8 @@ async function runFixture(req: ApiRequest): Promise<unknown> {
   const demo = demoMode();
   await wait(demo === 'slow' ? 2500 : 120);
   if (demo === 'contract' || demo === 'contract-empty') return runContractFixture(req, demo === 'contract-empty');
+  // 등급을 실제 예보와 공식 경보로 계산한다. 지도의 실시간 파고·바람 레이어와 같은 데이터를 보게 된다.
+  await ensureRealForecast();
   switch (req.kind) {
     case 'spots':
       if (demo === 'coverage') throw new ApiError('OUT_OF_COVERAGE', '분석되지 않은 지역');
