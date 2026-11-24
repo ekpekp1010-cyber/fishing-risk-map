@@ -120,7 +120,8 @@ export interface RecommendationsResponse {
 
 // ---- 오류 -------------------------------------------------------------------
 
-export type ApiErrorCode = 'BAD_REQUEST' | 'OUT_OF_COVERAGE' | 'NOT_FOUND' | 'INTERNAL';
+/** FORECAST_UNAVAILABLE(503): 예보를 아직 한 번도 수집하지 못함 */
+export type ApiErrorCode = 'BAD_REQUEST' | 'OUT_OF_COVERAGE' | 'NOT_FOUND' | 'FORECAST_UNAVAILABLE' | 'INTERNAL';
 
 export interface ApiErrorResponse {
   error: { code: ApiErrorCode; message: string };

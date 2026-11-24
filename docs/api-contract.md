@@ -19,7 +19,9 @@ B는 이 문서의 예시 응답(`lib/contract/fixtures/`)만으로 화면을 �
 | 화면 문구 | `label`, `reason`, `headline`은 서버가 한국어 문장으로 만들어 준다 |
 | 오류 | `{ "error": { "code": "...", "message": "..." } }`와 HTTP 상태 코드 |
 
-오류 코드: `BAD_REQUEST`(400), `OUT_OF_COVERAGE`(404, 분석되지 않은 지역), `NOT_FOUND`(404), `INTERNAL`(500).
+오류 코드: `BAD_REQUEST`(400), `OUT_OF_COVERAGE`(404, 분석되지 않은 지역), `NOT_FOUND`(404), `FORECAST_UNAVAILABLE`(503, 그 시간대 예보를 아직 수집하지 못함), `INTERNAL`(500).
+
+응답에는 `Cache-Control`이 붙는다. 등급은 정시 단위로 바뀌므로 다음 정시까지 캐시해도 된다.
 
 ## 1. 포인트 목록
 
@@ -164,6 +166,7 @@ A는 위 네 응답의 예시를 `lib/contract/fixtures/`에 `spots.json`, `spot
 | 날짜 | 버전 | 내용 |
 | --- | --- | --- |
 | 2026-11-24 | v0 | 첫 초안 |
+| 2026-11-24 | v0 | 오류 코드 `FORECAST_UNAVAILABLE`(503) 추가. `/api/spots`, `/api/spots/{id}/risk` 구현(DB 연결 전) |
 | 2026-11-24 | v0 | `lib/contract/types.ts`, fixtures 7개 추가. `ApiErrorResponse`, `ZONES_LAYER`, `ZoneFeatureProperties` 타입 추가(기존 필드 변경 없음) |
 
 ## 요청
@@ -175,6 +178,7 @@ A는 위 네 응답의 예시를 `lib/contract/fixtures/`에 `spots.json`, `spot
   - (2026-11-24, B) 전환했습니다. 화면은 이제 `lib/contract/types.ts`만 쓰고 `lib/ui/api-types.ts`는 지웠습니다. 주소에 `?demo=contract`, `?demo=contract-empty`를 붙이면 예시 응답 7개가 화면에 그대로 나옵니다(포인트 4곳, 경보, 데이터 지연, 빈 목록을 확인했습니다). 예시가 한 시각의 고정 응답이라, 시간 슬라이더용으로 `lib/ui/dev-fixtures.ts`의 시뮬레이터는 실제 API가 나올 때까지 남겨 둡니다.
 - [ ] (2026-11-24, B) 지형 타일 주소와 위험 구역 PMTiles 주소를 알려 주세요. `.env.local`의 `NEXT_PUBLIC_TERRAIN_TILES_URL`, `NEXT_PUBLIC_ZONES_PMTILES_URL`에 넣으면 바로 바뀝니다. 구역 도형의 속성 이름은 계약대로 `zoneId`를 씁니다.
 - [ ] (2026-11-24, B) API 네 개가 준비되면 알려 주세요. `NEXT_PUBLIC_USE_FIXTURES=0`으로 바꿔 연결을 확인하겠습니다.
+  - (2026-11-24, A) 1·2번 API 코드는 올렸습니다. Supabase에 포인트·지형 점수가 들어가기 전에는 빈 목록이나 오류가 나오니 아직 예시 데이터를 쓰세요. 3·4번은 다음 차례입니다.
 - [ ] (2026-11-24, B) 실시간 바람·파고 격자를 서버에서 내려 주는 API가 있으면 좋겠습니다. 지금은 지도의 바람 흐름·파고 레이어가 브라우저에서 Open-Meteo를 직접 부릅니다(`lib/map/live.ts`, 7×7 격자, 15분 캐시). 예보 수집기가 이미 같은 값을 모으니, 운영 전에 그쪽 캐시를 쓰도록 바꾸고 싶습니다. 필요한 모양은 `LiveGrid` 타입(경도·위도 목록, 바람 u·v, 파고, 기준 시각)입니다.
 - [ ] (2026-11-24, B) 가능하면 경사, 과거 침수 흔적 래스터 타일도 부탁합니다. 지금 '경사' 레이어는 지형 음영으로 대신하고 있고, '과거 침수 흔적' 레이어는 꺼져 있습니다.
 
