@@ -1,0 +1,41 @@
+# 비밀 값과 개인 메모: 절대 커밋하지 않는다
+ai 바이브 코딩.txt
+.env
+.env.*
+!.env.example
+
+# 디자인 원본(57 MB): 저장소에 넣지 않고 Figma에서 공유한다
+*.fig
+
+# 도구 상태
+.bkit/
+.claude/settings.local.json
+.claude/worktrees/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+.vercel/
+*.tsbuildinfo
+next-env.d.ts
+npm-debug.log*
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# 데이터 산출물: 원본·중간 결과는 저장소 밖(Supabase Storage)에 둔다
+pipeline/data/
+pipeline/out/
+*.tif
+*.tiff
+*.nc
+*.pmtiles
+*.mbtiles
+
+# OS
+Thumbs.db
+.DS_Store

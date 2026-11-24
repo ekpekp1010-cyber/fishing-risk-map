@@ -1,0 +1,44 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/git-sync.mjs start --hook",
+            "timeout": 120,
+            "statusMessage": "팀 변경 사항 가져오는 중"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/git-sync.mjs pull --throttle --hook",
+            "timeout": 120
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/git-sync.mjs save --hook",
+            "timeout": 150,
+            "statusMessage": "작업을 저장하고 푸시하는 중"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(node scripts/git-sync.mjs *)"
+    ]
+  }
+}
