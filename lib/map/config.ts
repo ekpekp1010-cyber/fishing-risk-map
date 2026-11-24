@@ -1,4 +1,4 @@
-import type { Grade } from '@/lib/ui/api-types';
+import type { Grade } from '@/lib/contract/types';
 
 // 시범 지역: 미국 오리건주 뉴포트 해안. 값은 대략적인 범위다.
 export const PILOT = {

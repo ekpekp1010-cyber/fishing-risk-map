@@ -1,7 +1,7 @@
 'use client';
 
 import { GradeIcon, Icon } from '@/components/spot/RiskBadge';
-import type { SpotSummary, SpotType } from '@/lib/ui/api-types';
+import type { SpotSummary, SpotType } from '@/lib/contract/types';
 import { GRADE_LABEL, SPOT_TYPES, TYPE_LABEL } from '@/lib/ui/labels';
 
 interface Props {

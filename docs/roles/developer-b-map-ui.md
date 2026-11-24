@@ -151,7 +151,9 @@ npm run build
 
 예시 데이터로 0~4단계의 화면을 모두 만들었다. 아래는 계획과 다르게 했거나 남은 일이다.
 
-- 타입과 예시 데이터는 `lib/ui/api-types.ts`, `lib/ui/dev-fixtures.ts`에 임시로 두었다. A가 `lib/contract/`를 올리면 그쪽으로 바꾼다. 좌표, 이름, 점수는 모두 예시다.
+- 타입은 A의 `lib/contract/types.ts`를 쓴다. 임시 타입 파일(`lib/ui/api-types.ts`)은 지웠다.
+- 예시 데이터는 두 가지다. 기본은 시간에 따라 변하는 시뮬레이터(`lib/ui/dev-fixtures.ts`)이고, 주소에 `?demo=contract` 또는 `?demo=contract-empty`를 붙이면 A의 예시 응답(`lib/contract/fixtures`)을 그대로 보여 준다.
+  A의 예시는 한 시각의 고정된 응답(포인트 4곳, 시간대 2~3개)이라 시간 슬라이더를 움직여 볼 수 없어서 시뮬레이터를 남겼다. 실제 API가 연결되면 시뮬레이터는 지운다. 좌표, 이름, 점수는 모두 예시다.
 - 위험 구역은 포인트 주변의 임시 원이다. `NEXT_PUBLIC_ZONES_PMTILES_URL`을 넣으면 A의 타일을 쓴다.
 - 지형은 공개 지형 타일(AWS의 Mapzen Terrain Tiles)이다. `NEXT_PUBLIC_TERRAIN_TILES_URL`을 넣으면 A의 타일을 쓴다.
 - 3D 보기는 지형 고도 위에 실제 항공 사진을 입힌 것이다. 처음에는 밝은 평면 지도를 기울인 것뿐이라 입체감이 없었고, 사용자 요청("구글어스처럼 실제 지형")에 따라 바꿨다.
@@ -164,5 +166,5 @@ npm run build
 - 내비게이션은 지도, 추천, 설정 세 개다. '저장'은 MVP 포함 여부가 정해지지 않아 넣지 않았다.
 - 검색은 포인트 이름과 장소 유형만 찾는다. 지명 검색은 넣지 않았다.
 - Material 3 컴포넌트 라이브러리는 쓰지 않고 토큰(CSS 변수)과 직접 만든 컴포넌트로 구성했다. 색은 Material 3 기본 색 구성표다.
-- 화면 상태는 주소에 `?demo=stale`, `?demo=error`, `?demo=coverage`, `?demo=slow`를 붙여 확인할 수 있다(예시 데이터일 때만).
+- 화면 상태는 주소에 `?demo=stale`, `?demo=error`, `?demo=coverage`, `?demo=slow`, `?demo=contract`, `?demo=contract-empty`를 붙여 확인할 수 있다(예시 데이터일 때만).
 - 지도 엔진의 작업자 파일은 `npm install` 때 `public/maplibre-gl-worker.mjs`로 복사된다(`package.json`의 `postinstall`).

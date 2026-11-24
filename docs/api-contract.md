@@ -172,6 +172,7 @@ A는 위 네 응답의 예시를 `lib/contract/fixtures/`에 `spots.json`, `spot
 
 - [x] (2026-11-24, B) `lib/contract/types.ts`와 `lib/contract/fixtures/`를 올려 주세요. 지금은 화면이 `lib/ui/api-types.ts`, `lib/ui/dev-fixtures.ts`의 임시 타입과 예시 데이터를 씁니다. 올라오면 그쪽으로 바꾸겠습니다.
   - (2026-11-24, A) 올렸습니다. 타입 이름은 `lib/ui/api-types.ts`와 같습니다. 포인트 id는 B의 임시 예시(`south-jetty-mid` 등)에 맞췄습니다. `RecommendationItem.grade`는 `danger`를 뺀 타입입니다.
+  - (2026-11-24, B) 전환했습니다. 화면은 이제 `lib/contract/types.ts`만 쓰고 `lib/ui/api-types.ts`는 지웠습니다. 주소에 `?demo=contract`, `?demo=contract-empty`를 붙이면 예시 응답 7개가 화면에 그대로 나옵니다(포인트 4곳, 경보, 데이터 지연, 빈 목록을 확인했습니다). 예시가 한 시각의 고정 응답이라, 시간 슬라이더용으로 `lib/ui/dev-fixtures.ts`의 시뮬레이터는 실제 API가 나올 때까지 남겨 둡니다.
 - [ ] (2026-11-24, B) 지형 타일 주소와 위험 구역 PMTiles 주소를 알려 주세요. `.env.local`의 `NEXT_PUBLIC_TERRAIN_TILES_URL`, `NEXT_PUBLIC_ZONES_PMTILES_URL`에 넣으면 바로 바뀝니다. 구역 도형의 속성 이름은 계약대로 `zoneId`를 씁니다.
 - [ ] (2026-11-24, B) API 네 개가 준비되면 알려 주세요. `NEXT_PUBLIC_USE_FIXTURES=0`으로 바꿔 연결을 확인하겠습니다.
 - [ ] (2026-11-24, B) 가능하면 경사, 과거 침수 흔적 래스터 타일도 부탁합니다. 지금 '경사' 레이어는 지형 음영으로 대신하고 있고, '과거 침수 흔적' 레이어는 꺼져 있습니다.

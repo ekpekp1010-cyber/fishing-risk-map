@@ -1,5 +1,7 @@
-// 개발자 A의 실제 API와 lib/contract/fixtures가 나오기 전까지 화면 개발에 쓰는 임시 예시 데이터.
-// 좌표, 이름, 점수는 모두 예시이며 실제 분석 결과가 아니다. 응답 모양은 docs/api-contract.md v0를 따른다.
+// 화면 개발용 시뮬레이터. 실제 API가 나오기 전까지 시간에 따라 변하는 예시 응답을 만들어 낸다.
+// 개발자 A의 lib/contract/fixtures는 한 시각의 고정된 예시라 시간 슬라이더를 움직여 볼 수 없어서 이것을 함께 둔다.
+// 응답 타입은 lib/contract/types.ts를 그대로 쓰고, 포인트 id는 lib/contract/fixtures와 같다.
+// 좌표, 이름, 점수는 모두 예시이며 실제 분석 결과가 아니다. 실제 API가 연결되면 이 파일은 지운다.
 
 import type { FeatureCollection, Polygon } from 'geojson';
 import type {
@@ -13,7 +15,7 @@ import type {
   SpotsResponse,
   SpotType,
   ZoneGradesResponse,
-} from './api-types';
+} from '@/lib/contract/types';
 import { gradeFromScore } from './labels';
 import { addHoursIso, formatClock, placeHour } from './time';
 
@@ -237,7 +239,8 @@ export function fixtureRecommendations(p: {
       lat: s.lat,
       lng: s.lng,
       score: r.score,
-      grade: r.grade,
+      // 위에서 danger를 걸러 냈으므로 남는 등급은 safe 아니면 caution이다.
+      grade: r.grade === 'caution' ? ('caution' as const) : ('safe' as const),
       walkMinutes: s.walkMinutes,
       reason: s.reason,
     }));

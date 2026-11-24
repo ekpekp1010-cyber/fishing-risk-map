@@ -1,4 +1,4 @@
-import type { Confidence, FloodFrequency, Grade, SpotType } from './api-types';
+import type { Confidence, FloodFrequency, Grade, SpotType } from '@/lib/contract/types';
 
 export const GRADE_LABEL: Record<Grade, string> = {
   safe: '안전',

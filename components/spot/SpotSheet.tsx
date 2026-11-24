@@ -3,7 +3,7 @@
 import type { MouseEvent } from 'react';
 import { Icon, RiskBadge } from './RiskBadge';
 import { retry, useApi, type ApiRequest } from '@/lib/hooks/api';
-import type { HourlyRisk } from '@/lib/ui/api-types';
+import type { HourlyRisk } from '@/lib/contract/types';
 import { CONFIDENCE_LABEL, FLOOD_LABEL, GRADE_LABEL, SAFETY_NOTICE, TYPE_LABEL } from '@/lib/ui/labels';
 import { formatPlaceTime } from '@/lib/ui/time';
 

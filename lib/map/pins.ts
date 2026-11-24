@@ -1,5 +1,5 @@
 import { GRADE_COLOR } from './config';
-import type { Grade } from '@/lib/ui/api-types';
+import type { Grade } from '@/lib/contract/types';
 import { GRADE_GLYPH } from '@/lib/ui/labels';
 
 // 등급을 색만으로 구분하지 않도록 모양(원, 삼각형, 팔각형)과 글자를 함께 쓴다.

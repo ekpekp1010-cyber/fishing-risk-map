@@ -5,7 +5,7 @@ import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Protocol } from 'pmtiles';
 import type { FeatureCollection } from 'geojson';
-import type { Grade, SpotSummary } from '@/lib/ui/api-types';
+import { ZONES_LAYER, type Grade, type SpotSummary } from '@/lib/contract/types';
 import { GRADE_LABEL, TYPE_LABEL } from '@/lib/ui/labels';
 import { GRADE_COLOR, MAP_CONFIG, PILOT, VIEW_3D, inPilotBbox, type LayerState } from '@/lib/map/config';
 import { gradeShapeSvg } from '@/lib/map/pins';
@@ -146,7 +146,7 @@ export default function MapView({ spots, selectedId, onSelect, zoneGrades, zones
       } else {
         map.addSource('zones', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
       }
-      const sourceLayer = fromTiles ? { 'source-layer': 'zones' } : {};
+      const sourceLayer = fromTiles ? { 'source-layer': ZONES_LAYER } : {};
       map.addLayer({
         id: 'zones-fill',
         type: 'fill',

@@ -10,7 +10,7 @@ import { GradeIcon } from '@/components/spot/RiskBadge';
 import SpotSheet from '@/components/spot/SpotSheet';
 import { retry, USE_FIXTURES, useApi, useLastReady, type ApiRequest } from '@/lib/hooks/api';
 import { DEFAULT_LAYERS, PILOT, inPilotBbox, type LayerState } from '@/lib/map/config';
-import type { Grade, SpotSummary, SpotType } from '@/lib/ui/api-types';
+import type { Grade, SpotSummary, SpotType } from '@/lib/contract/types';
 import { fixtureZonesGeoJson } from '@/lib/ui/dev-fixtures';
 import { GRADE_LABEL, TYPE_LABEL } from '@/lib/ui/labels';
 import { addHoursIso, floorToHourIso, HOURS_AHEAD } from '@/lib/ui/time';

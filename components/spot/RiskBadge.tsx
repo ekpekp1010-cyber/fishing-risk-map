@@ -1,4 +1,4 @@
-import type { Confidence, Grade } from '@/lib/ui/api-types';
+import type { Confidence, Grade } from '@/lib/contract/types';
 import { CONFIDENCE_LABEL, GRADE_GLYPH, GRADE_LABEL } from '@/lib/ui/labels';
 
 // 여러 화면이 함께 쓰는 작은 표시 요소: 아이콘, 등급 모양, 등급 배지.
