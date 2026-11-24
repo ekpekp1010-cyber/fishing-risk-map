@@ -12,13 +12,13 @@ import { gradeShapeSvg } from '@/lib/map/pins';
 
 // 실사 3D 지도: Google Photorealistic 3D Tiles 위에 위험 구역을 표면에 덮고 포인트 핀을 세운다.
 //
-// 점진 교체(docs/redesign-plan.md 4.5):
-// 1. 처음에는 가벼운 지도(공개 지형 + 항공 사진의 TerrainLayer)를 그리고 구역·핀을 그 위에 얹는다.
-// 2. 실사 레이어는 처음부터 투명하게 그려 타일을 미리 받는다. deck.gl은 그려지는 레이어만
-//    카메라를 받아 타일을 고르므로 visible: false로 숨기면 타일을 받지 않는다.
-// 3. 지금 보이는 범위의 실사 타일이 다 오면 실사를 보이게 하고 지형 역할도 넘긴다. 되돌리지 않는다.
+// 실사를 처음부터 그린다(docs/redesign-plan.md 4.5, D3). 실사는 거친 타일부터 받아 점점 선명해지므로
+// 따로 교체할 필요가 없다. 가벼운 지도(공개 지형 + 항공 사진)는 실사를 쓸 수 없을 때만 대신 그린다.
 
 const TILESET_URL = 'https://tile.googleapis.com/v1/3dtiles/root.json';
+
+/** 이 시간 안에 실사 타일이 하나도 오지 않으면 가벼운 지도로 대신한다. */
+const PHOTOREAL_TIMEOUT_MS = 12_000;
 
 /** 공개 지형 타일의 높이 해석 방식 */
 const ELEVATION_DECODER = {
@@ -26,18 +26,19 @@ const ELEVATION_DECODER = {
   mapbox: { rScaler: 6553.6, gScaler: 25.6, bScaler: 0.1, offset: -10000 },
 };
 
-export type PhotorealPhase = 'light' | 'photoreal';
+export type MapMode = 'photoreal' | 'light';
+/** 가벼운 지도로 대신한 이유 */
+export type FallbackReason = 'off' | 'error' | 'timeout';
 
 export interface PhotorealStats {
-  phase: PhotorealPhase;
-  /** 가벼운 지도의 첫 타일이 온 시각(ms, 페이지 시작 기준) */
-  lightReadyAt: number | null;
-  /** 루트 타일셋을 받은 시각(ms) */
+  mode: MapMode;
+  fallbackReason: FallbackReason | null;
+  /** 루트 타일셋을 받은 시각(ms, 페이지 시작 기준) */
   tilesetLoadedAt: number | null;
   /** 첫 실사 타일이 온 시각(ms) */
   firstTileAt: number | null;
-  /** 실사로 바뀐 시각(ms) */
-  switchedAt: number | null;
+  /** 가벼운 지도의 첫 타일이 온 시각(ms). 가벼운 지도를 쓸 때만 */
+  lightReadyAt: number | null;
   tilesLoaded: number;
   tileErrors: number;
 }
@@ -75,23 +76,32 @@ export default function PhotorealView({ apiKey, photoreal, view, spots, zones, g
   // 그래서 캔버스는 이 컴포넌트가 그리고 Deck은 거기에 그리기만 한다.
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const deckRef = useRef<Deck | null>(null);
+  const [fallback, setFallback] = useState<FallbackReason | null>(photoreal ? null : 'off');
+  const mode: MapMode = fallback ? 'light' : 'photoreal';
   const stats = useRef<PhotorealStats>({
-    phase: 'light',
-    lightReadyAt: null,
+    mode,
+    fallbackReason: fallback,
     tilesetLoadedAt: null,
     firstTileAt: null,
-    switchedAt: null,
+    lightReadyAt: null,
     tilesLoaded: 0,
     tileErrors: 0,
   });
-  const [phase, setPhase] = useState<PhotorealPhase>('light');
-  /** 실사 타일셋. 매 프레임 다 받았는지 확인하는 데 쓴다. */
-  const tilesetRef = useRef<{ isLoaded: () => boolean } | null>(null);
   // 콜백은 바뀌어도 Deck을 다시 만들지 않도록 ref로 들고 있는다.
   const callbacks = useRef({ onCredits, onStats, onError });
   useEffect(() => {
     callbacks.current = { onCredits, onStats, onError };
   });
+
+  const report = () => callbacks.current.onStats({ ...stats.current });
+  const fallBack = (reason: FallbackReason) => {
+    if (stats.current.fallbackReason) return;
+    stats.current.mode = 'light';
+    stats.current.fallbackReason = reason;
+    callbacks.current.onCredits('');
+    setFallback(reason);
+    report();
+  };
 
   // Deck은 한 번만 만든다.
   useEffect(() => {
@@ -100,17 +110,10 @@ export default function PhotorealView({ apiKey, photoreal, view, spots, zones, g
       canvas: canvasRef.current,
       initialViewState: view,
       controller: { type: TerrainController, touchRotate: true, inertia: 250 },
-      onError: (error) => callbacks.current.onError(error.message),
-      // 지금 보이는 범위의 실사 타일을 다 받았으면 실사로 바꾼다.
-      onAfterRender: () => {
-        const s = stats.current;
-        if (s.phase === 'light' && s.tilesLoaded > 0 && tilesetRef.current?.isLoaded()) {
-          s.phase = 'photoreal';
-          s.switchedAt = Math.round(performance.now());
-          performance.mark('photoreal-switch');
-          setPhase('photoreal');
-          callbacks.current.onStats({ ...s });
-        }
+      onError: (error, layer) => {
+        // 실사 타일셋을 못 받으면(키 오류, 한도 초과 등) 가벼운 지도로 대신한다.
+        if (layer?.id === 'google-3d-tiles') fallBack('error');
+        callbacks.current.onError(error.message);
       },
       getTooltip: ({ object }) => (object && 'name' in object ? `${object.name} · 점수 ${object.score}` : null),
     });
@@ -123,6 +126,16 @@ export default function PhotorealView({ apiKey, photoreal, view, spots, zones, g
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 실사 타일이 제때 오지 않으면 가벼운 지도로 대신한다.
+  useEffect(() => {
+    if (fallback) return;
+    const timer = setTimeout(() => {
+      if (stats.current.firstTileAt === null) fallBack('timeout');
+    }, PHOTOREAL_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fallback]);
+
   // 카메라 이동(포인트로 날아가기)
   useEffect(() => {
     deckRef.current?.setProps({
@@ -132,69 +145,59 @@ export default function PhotorealView({ apiKey, photoreal, view, spots, zones, g
 
   // 레이어
   useEffect(() => {
-    const report = () => callbacks.current.onStats({ ...stats.current });
-    const isPhotoreal = phase === 'photoreal';
-
-    // 가벼운 지도: 실사로 바뀌기 전까지 보이고, 구역·핀이 얹히는 지형이 된다.
-    const light = new TerrainLayer({
-      id: 'light-terrain',
-      elevationData: MAP_CONFIG.terrainTiles,
-      elevationDecoder: ELEVATION_DECODER[MAP_CONFIG.terrainEncoding],
-      texture: MAP_CONFIG.satelliteTiles,
-      maxZoom: Math.min(MAP_CONFIG.terrainMaxZoom, MAP_CONFIG.satelliteMaxZoom),
-      visible: !isPhotoreal,
-      operation: 'terrain+draw',
-      // TerrainController가 화면 가운데의 지형 높이를 깊이 피킹으로 읽는다.
-      pickable: !isPhotoreal,
-      onTileLoad: () => {
-        if (stats.current.lightReadyAt === null) {
-          stats.current.lightReadyAt = Math.round(performance.now());
-          performance.mark('light-first-tile');
-          report();
-        }
-      },
-    });
-
-    const tiles = new Tile3DLayer({
-      id: 'google-3d-tiles',
-      data: TILESET_URL,
-      visible: photoreal,
-      loadOptions: { fetch: { headers: { 'X-GOOG-API-KEY': apiKey } } },
-      // 바뀌기 전: 투명하게 그려 타일만 받는다. 깊이를 기록하지 않아 가벼운 지도를 가리지 않는다.
-      // 바뀐 뒤: 구역과 핀이 이 표면을 지형으로 쓴다.
-      operation: isPhotoreal ? 'terrain+draw' : 'draw',
-      opacity: isPhotoreal ? 1 : 0,
-      parameters: isPhotoreal ? {} : { depthWriteEnabled: false },
-      pickable: isPhotoreal ? '3d' : false,
-      onTilesetLoad: (tileset) => {
-        tilesetRef.current = tileset;
-        stats.current.tilesetLoadedAt ??= Math.round(performance.now());
-        report();
-        // Google 정책: 화면에 보이는 타일의 저작권 문구를 모아 표시한다.
-        tileset.options.onTraversalComplete = (selected) => {
-          const credits = new Set<string>();
-          for (const tile of selected) {
-            const copyright: string | undefined = tile.content?.gltf?.asset?.copyright;
-            copyright?.split(';').forEach((c) => c.trim() && credits.add(c.trim()));
-          }
-          // 실사가 보이기 전에는 Google 출처를 띄우지 않는다.
-          if (stats.current.phase === 'photoreal') callbacks.current.onCredits([...credits].join('; '));
-          return selected;
-        };
-      },
-      onTileLoad: () => {
-        stats.current.tilesLoaded += 1;
-        if (stats.current.firstTileAt === null) {
-          stats.current.firstTileAt = Math.round(performance.now());
-          performance.mark('photoreal-first-tile');
-        }
-        report();
-      },
-      onTileError: () => {
-        stats.current.tileErrors += 1;
-        report();
-      },
-    });
+    const base =
+      mode === 'photoreal'
+        ? new Tile3DLayer({
+            id: 'google-3d-tiles',
+            data: TILESET_URL,
+            loadOptions: { fetch: { headers: { 'X-GOOG-API-KEY': apiKey } } },
+            // 구역과 핀이 이 표면을 지형으로 쓴다.
+            operation: 'terrain+draw',
+            // TerrainController가 화면 가운데의 지형 높이를 깊이 피킹으로 읽는다.
+            pickable: '3d',
+            onTilesetLoad: (tileset) => {
+              stats.current.tilesetLoadedAt ??= Math.round(performance.now());
+              report();
+              // Google 정책: 화면에 보이는 타일의 저작권 문구를 모아 표시한다.
+              tileset.options.onTraversalComplete = (selected) => {
+                const credits = new Set<string>();
+                for (const tile of selected) {
+                  const copyright: string | undefined = tile.content?.gltf?.asset?.copyright;
+                  copyright?.split(';').forEach((c) => c.trim() && credits.add(c.trim()));
+                }
+                callbacks.current.onCredits([...credits].join('; '));
+                return selected;
+              };
+            },
+            onTileLoad: () => {
+              stats.current.tilesLoaded += 1;
+              if (stats.current.firstTileAt === null) {
+                stats.current.firstTileAt = Math.round(performance.now());
+                performance.mark('photoreal-first-tile');
+              }
+              report();
+            },
+            onTileError: () => {
+              stats.current.tileErrors += 1;
+              report();
+            },
+          })
+        : new TerrainLayer({
+            id: 'light-terrain',
+            elevationData: MAP_CONFIG.terrainTiles,
+            elevationDecoder: ELEVATION_DECODER[MAP_CONFIG.terrainEncoding],
+            texture: MAP_CONFIG.satelliteTiles,
+            maxZoom: Math.min(MAP_CONFIG.terrainMaxZoom, MAP_CONFIG.satelliteMaxZoom),
+            operation: 'terrain+draw',
+            pickable: true,
+            onTileLoad: () => {
+              if (stats.current.lightReadyAt === null) {
+                stats.current.lightReadyAt = Math.round(performance.now());
+                performance.mark('light-first-tile');
+                report();
+              }
+            },
+          });
 
     const zoneLayer = new GeoJsonLayer<Record<string, unknown>, TerrainExtensionProps>({
       id: 'risk-zones',
@@ -223,8 +226,8 @@ export default function PhotorealView({ apiKey, photoreal, view, spots, zones, g
       parameters: { depthCompare: 'always' },
     });
 
-    deckRef.current?.setProps({ layers: [light, tiles, zoneLayer, pinLayer] });
-  }, [apiKey, photoreal, phase, spots, zones, grades]);
+    deckRef.current?.setProps({ layers: [base, zoneLayer, pinLayer] });
+  }, [apiKey, mode, spots, zones, grades]);
 
   return (
     <div className="photoreal">
