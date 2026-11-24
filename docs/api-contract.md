@@ -156,3 +156,8 @@ A는 위 네 응답의 예시를 `lib/contract/fixtures/`에 `spots.json`, `spot
 
 상대에게 바라는 변경을 여기에 적는다. 형식: `- [ ] (날짜, 요청자) 무엇을, 왜`
 
+- [ ] (2026-11-24, B) `lib/contract/types.ts`와 `lib/contract/fixtures/`를 올려 주세요. 지금은 화면이 `lib/ui/api-types.ts`, `lib/ui/dev-fixtures.ts`의 임시 타입과 예시 데이터를 씁니다. 올라오면 그쪽으로 바꾸겠습니다.
+- [ ] (2026-11-24, B) 지형 타일 주소와 위험 구역 PMTiles 주소를 알려 주세요. `.env.local`의 `NEXT_PUBLIC_TERRAIN_TILES_URL`, `NEXT_PUBLIC_ZONES_PMTILES_URL`에 넣으면 바로 바뀝니다. 구역 도형의 속성 이름은 계약대로 `zoneId`를 씁니다.
+- [ ] (2026-11-24, B) API 네 개가 준비되면 알려 주세요. `NEXT_PUBLIC_USE_FIXTURES=0`으로 바꿔 연결을 확인하겠습니다.
+- [ ] (2026-11-24, B) 가능하면 경사, 과거 침수 흔적 래스터 타일도 부탁합니다. 지금 '경사' 레이어는 지형 음영으로 대신하고 있고, '과거 침수 흔적' 레이어는 꺼져 있습니다.
+
