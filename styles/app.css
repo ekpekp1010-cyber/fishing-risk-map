@@ -976,11 +976,14 @@
   .mapview .maplibregl-ctrl-bottom-left {
     right: 0;
   }
-  /* 오른쪽은 지도 컨트롤이 세로로 차지하므로 범례는 왼쪽에 둔다 */
+  /* 오른쪽은 지도 컨트롤이 세로로 차지하므로 범례는 왼쪽, 출처 표기 바로 위에 둔다.
+     출처 표기는 줄 수가 달라지고 접히기도 하므로 실제 높이(--attrib-h, MapView가 잰다)만큼 올린다.
+     68px은 출처 표기 상자의 아래 위치이고, 값을 못 받았을 때는 세 줄 높이로 본다 */
   .legend {
     right: auto;
     left: 12px;
-    bottom: calc(136px + var(--sheet-h));
+    bottom: calc(68px + var(--attrib-h, 68px) + var(--sheet-h));
+    transition: bottom 0.15s;
   }
 }
 /* 시트를 반쯤 열면 지도가 낮아져 범례가 위쪽 칩과 겹친다. 이때 등급은 시트의 배지가 알려 준다 */

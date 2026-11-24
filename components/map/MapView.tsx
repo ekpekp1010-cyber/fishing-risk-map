@@ -114,6 +114,16 @@ export default function MapView({
     applyPadding();
     wide.addEventListener('change', applyPadding);
 
+    // 출처 표기의 높이를 CSS에 알린다(--attrib-h). 줄 수가 화면 폭과 켠 레이어에 따라 달라지고 접히기도 해서,
+    // 좁은 화면의 범례가 고정된 위치에 있으면 글자 위에 얹힌다. 범례는 이 값만큼 위로 비킨다(styles/app.css).
+    const attribBox = container.querySelector<HTMLElement>('.maplibregl-ctrl-bottom-left');
+    const host = container.closest<HTMLElement>('.mapapp');
+    const attribWatch =
+      attribBox && host
+        ? new ResizeObserver(() => host.style.setProperty('--attrib-h', `${attribBox.offsetHeight}px`))
+        : null;
+    if (attribBox) attribWatch?.observe(attribBox);
+
     map.on('load', () => {
       const dem = {
         type: 'raster-dem' as const,
@@ -265,6 +275,8 @@ export default function MapView({
     const pins = pinsRef.current;
     return () => {
       wide.removeEventListener('change', applyPadding);
+      attribWatch?.disconnect();
+      host?.style.removeProperty('--attrib-h');
       pins.forEach((p) => p.marker.remove());
       pins.clear();
       map.remove();
