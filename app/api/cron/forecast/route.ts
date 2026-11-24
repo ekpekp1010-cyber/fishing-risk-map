@@ -8,7 +8,8 @@ import { fetchForecastRows } from '@/lib/server/open-meteo';
 
 export const maxDuration = 60;
 
-// Vercel Cron이 1시간마다 부른다(vercel.json). Authorization: Bearer <CRON_SECRET>
+// 수동 수집용. 정기 수집은 Supabase pg_cron이 한다(supabase/migrations/*_forecast_collector.sql).
+// Authorization: Bearer <CRON_SECRET>
 export async function GET(request: NextRequest) {
   return handle(async () => {
     if (request.headers.get('authorization') !== `Bearer ${requireEnv('CRON_SECRET')}`) {
