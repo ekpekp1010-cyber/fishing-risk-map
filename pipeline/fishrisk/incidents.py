@@ -13,10 +13,11 @@ from __future__ import annotations
 import csv
 import json
 import sys
+import time
 from pathlib import Path
 
 from .config import BBox
-from .osm import OUT_DIR, build_query, fetch, parse
+from .osm import OUT_DIR, fetch, parse
 from .rasters import RAW, SOURCES, grid_spec_around, warp_array
 from .spots import DraftSpot
 from .terrain import Grid, run
@@ -41,10 +42,53 @@ def local_grid(lat: float, lng: float) -> Grid:
     return Grid(layers["dem"].astype("float32"), layers["cover"], layers["occurrence"], layers["seasonality"], t)
 
 
-def parkings_near(lat: float, lng: float) -> list[tuple[float, float, str]]:
+def parkings_near(incident_id: str, lat: float, lng: float) -> list[tuple[float, float, str]] | None:
+    """지점 둘레 공용 주차장. 결과는 out/incidents/parking-<id>.json에 저장해 다시 쓴다. 조회 실패면 None."""
+    cache = OUT / f"parking-{incident_id}.json"
+    if cache.exists():
+        return [tuple(p) for p in json.loads(cache.read_text(encoding="utf-8"))]
     box = BBox(lng - PARKING_RADIUS_DEG, lat - PARKING_RADIUS_DEG, lng + PARKING_RADIUS_DEG, lat + PARKING_RADIUS_DEG)
-    cands = parse(fetch(build_query(box)), box)
-    return [(c.lat, c.lng, c.name) for c in cands if c.kind == "parking" and c.tags.get("access") not in ("private", "no", "customers")]
+    query = f'[out:json][timeout:25];nwr["amenity"="parking"]({box.south},{box.west},{box.north},{box.east});out center tags;'
+    for attempt in range(3):
+        try:
+            cands = parse(fetch(query, timeout=40), box)
+            break
+        except RuntimeError:
+            time.sleep(5 * (attempt + 1))
+    else:
+        return None
+    out = [(c.lat, c.lng, c.name) for c in cands if c.kind == "parking" and c.tags.get("access") not in ("private", "no", "customers")]
+    cache.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
+    return out
+
+
+SNAP_RADIUS_M = 300
+
+
+def snap_to_shore(g: Grid, lat: float, lng: float) -> tuple[float, float, float]:
+    """보도 장소로 잡은 근사 좌표를 반경 300 m 안의 가장 가까운 물가 육지 칸(물과 맞닿은 칸)으로 옮긴다.
+    파도에 휩쓸린 사람은 물가에 있었다고 본다. 반환: (lat, lng, 옮긴 거리 m)"""
+    import math
+
+    import numpy as np
+    from pyproj import Transformer
+
+    from .rasters import CRS
+
+    fwd = Transformer.from_crs("EPSG:4326", CRS, always_xy=True)
+    inv = Transformer.from_crs(CRS, "EPSG:4326", always_xy=True)
+    x, y = fwd.transform(lng, lat)
+    w = g.water
+    edge = ~w & (np.roll(w, 1, 0) | np.roll(w, -1, 0) | np.roll(w, 1, 1) | np.roll(w, -1, 1))
+    rr, cc = g.disk(x, y, SNAP_RADIUS_M)
+    m = edge[rr, cc]
+    if not m.any():
+        return lat, lng, 0.0
+    px, py = g.transform * (cc[m] + 0.5, rr[m] + 0.5)
+    d = np.hypot(px - x, py - y)
+    i = int(d.argmin())
+    lng2, lat2 = inv.transform(px[i], py[i])
+    return round(lat2, 6), round(lng2, 6), float(math.floor(d[i]))
 
 
 def main(argv: list[str]) -> int:
@@ -52,12 +96,16 @@ def main(argv: list[str]) -> int:
     rows = []
     for inc in read_incidents():
         lat, lng = float(inc["lat"]), float(inc["lng"])
-        spot = DraftSpot(inc["id"], inc["place"], inc["type"], lat, lng, "", "")
         g = local_grid(lat, lng)
-        [t] = run([spot], g, parkings_near(lat, lng), "incident")
-        rows.append({**t, "incident": inc})
+        lat, lng, moved = snap_to_shore(g, lat, lng)
+        spot = DraftSpot(inc["id"], inc["place"], inc["type"], lat, lng, "", "")
+        parks = parkings_near(inc["id"], lat, lng)
+        # 주차장 조회가 끝내 실패하면 빈 목록 → 퇴로 거리 2 km(가장 위험한 쪽)로 계산된다.
+        [t] = run([spot], g, parks or [], "incident")
+        rows.append({**t, "incident": inc, "snapped": {"lat": lat, "lng": lng, "moved_m": moved},
+                     "parking_lookup": "ok" if parks is not None else "failed"})
         top = ", ".join(f"{f['code']} {f['score']}" for f in t["factors"][:3])
-        print(f"{inc['id']:28s} V {t['score']:3d} 고도 {t['elevation_m']:4.1f} 경사 {t['slope_deg']:4.1f} 신뢰도 {t['confidence']} | {top}")
+        print(f"{inc['id']:28s} 물가로 {moved:4.0f} m · V {t['score']:3d} 고도 {t['elevation_m']:4.1f} 경사 {t['slope_deg']:4.1f} 신뢰도 {t['confidence']} | {top}")
     (OUT / "terrain.json").write_text(json.dumps(rows, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"{len(rows)}건 → {(OUT / 'terrain.json').relative_to(ROOT)}")
     return 0
