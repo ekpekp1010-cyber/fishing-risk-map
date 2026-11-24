@@ -3,6 +3,7 @@ import { AOI_POINT } from '@/lib/server/coverage';
 import { listCells, replaceAlerts, upsertForecast } from '@/lib/server/db';
 import { requireEnv } from '@/lib/server/env';
 import { handle } from '@/lib/server/http';
+import { applyCorrection, computeSurge, fetchStation } from '@/lib/server/noaa';
 import { fetchActiveAlerts } from '@/lib/server/nws';
 import { fetchForecastRows } from '@/lib/server/open-meteo';
 
@@ -17,7 +18,17 @@ export async function GET(request: NextRequest) {
     }
     const now = new Date();
     const cells = await listCells();
-    const { rows, errors } = await fetchForecastRows(cells, now);
+    const { rows: raw, errors } = await fetchForecastRows(cells, now);
+    let rows = raw;
+    let tide: string;
+    try {
+      const station = await fetchStation(now);
+      const surge = computeSurge(station, now);
+      rows = applyCorrection(raw, station, surge);
+      tide = surge ? `해일 성분 ${surge.surgeM.toFixed(2)} m (${surge.at})` : '관측 지연, 보정 안 함';
+    } catch (e) {
+      tide = `NOAA 실패: ${(e as Error).message}`;
+    }
     const saved = await upsertForecast(rows);
 
     let alerts: number | string;
@@ -31,7 +42,7 @@ export async function GET(request: NextRequest) {
     }
 
     return Response.json(
-      { fetchedAt: now.toISOString(), cells: cells.length, rows: saved, alerts, errors },
+      { fetchedAt: now.toISOString(), cells: cells.length, rows: saved, tide, alerts, errors },
       { headers: { 'Cache-Control': 'no-store' } },
     );
   });
