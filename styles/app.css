@@ -1,87 +1,65 @@
 /* 화면 구성 스타일. 색·글자·모서리 값은 tokens.css의 Material 3 토큰만 쓴다. */
 
-/* ---- 앱 골격: Navigation rail / Navigation bar ---- */
+/* ---- 앱 골격 ----
+ * 지도가 화면 전체를 채우고, 메뉴와 내용은 그 위에 뜬 패널 하나에 들어간다. 화면을 칸으로 나누지 않는다.
+ */
 .shell {
-  display: grid;
-  grid-template-columns: var(--rail-width) minmax(0, 1fr);
-  height: 100dvh;
-}
-.shell__nav {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding: 20px 0;
-  background: var(--md-surface-container);
-}
-.shell__main {
   position: relative;
-  min-width: 0;
-  min-height: 0;
+  height: 100dvh;
   overflow: auto;
 }
-.nav-link {
+
+/* 패널 머리의 탭(지도·추천·설정) */
+.tabs {
   display: flex;
-  flex-direction: column;
+  flex: none;
+  gap: 4px;
+  margin: 12px 12px 0;
+  padding: 4px;
+  border-radius: var(--md-shape-full);
+  background: color-mix(in srgb, var(--md-on-surface) 6%, transparent);
+}
+.tab {
+  position: relative;
+  display: flex;
+  flex: 1;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  width: 100%;
-  min-height: 56px;
-  color: var(--md-on-surface-variant);
-  font: var(--md-label-medium);
-  text-decoration: none;
-}
-.nav-link__icon {
-  display: grid;
-  place-items: center;
-  width: 56px;
-  height: 32px;
+  gap: 6px;
+  min-height: 40px;
   border-radius: var(--md-shape-full);
+  color: var(--md-on-surface-variant);
+  font: var(--md-label-large);
+  text-decoration: none;
   transition: background 0.2s;
 }
-.nav-link:hover .nav-link__icon {
+/* 보이는 높이는 40px이지만 누르는 영역은 48px이 되게 한다 */
+.tab::after {
+  content: '';
+  position: absolute;
+  inset: -4px 0;
+}
+.tab:hover {
   background: color-mix(in srgb, var(--md-on-surface) 8%, transparent);
 }
-.nav-link[aria-current='page'] {
+.tab[aria-current='page'] {
+  background: var(--md-surface-container-lowest);
+  box-shadow: var(--md-elevation-1);
   color: var(--md-on-surface);
-  font-weight: 700;
-}
-.nav-link[aria-current='page'] .nav-link__icon {
-  background: var(--md-secondary-container);
-  color: var(--md-on-secondary-container);
-}
-@media (max-width: 599px) {
-  .shell {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) var(--bar-height);
-  }
-  .shell__nav {
-    grid-row: 2;
-    flex-direction: row;
-    justify-content: space-around;
-    padding: 0 8px;
-  }
-  .shell__main {
-    grid-row: 1;
-  }
-  .nav-link {
-    flex: 1;
-  }
 }
 
 /* ---- 지도 화면 ---- */
 .mapapp {
   --sheet-h: 0px;
+  /* 지도 위 요소들이 왼쪽에서 띄우는 거리. 넓은 화면에서는 패널 폭만큼 밀린다(lib/map/config.ts의 PANEL.inset과 같은 값) */
+  --inset-left: 384px;
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--side-sheet-width);
   height: 100%;
   overflow: hidden;
 }
 .mapapp__stage {
-  position: relative;
-  min-width: 0;
+  position: absolute;
+  inset: 0;
   overflow: hidden;
   background: var(--md-surface-container-low);
 }
@@ -94,15 +72,18 @@
   height: 100%;
 }
 .mapview .maplibregl-ctrl-bottom-left {
+  left: calc(var(--inset-left) - 10px);
+  /* 오른쪽은 범례 자리다. 출처 표기가 길면 그 밑으로 들어가지 않고 줄을 바꾼다 */
+  right: 204px;
   bottom: calc(84px + var(--sheet-h));
 }
 .mapapp__top {
   position: absolute;
   top: 12px;
-  left: 12px;
+  left: var(--inset-left);
   z-index: 3;
   /* 오른쪽 위 지도 컨트롤(2D·3D)과 겹치지 않게 자리를 남긴다. 필터 칩이 한 줄에 다 보이도록 검색창보다 넓게 잡는다 */
-  width: min(520px, calc(100% - 136px));
+  width: min(520px, calc(100% - var(--inset-left) - 124px));
   /* 빈 자리는 지도 조작을 막지 않는다 */
   pointer-events: none;
 }
@@ -112,7 +93,7 @@
 }
 .mapapp__time {
   position: absolute;
-  left: 12px;
+  left: var(--inset-left);
   right: 12px;
   bottom: calc(12px + var(--sheet-h));
   z-index: 3;
@@ -120,8 +101,8 @@
 .legend {
   position: absolute;
   right: 12px;
-  /* 시간 슬라이더 바로 위는 출처 표기 줄이라, 그 위에 둔다 */
-  bottom: calc(120px + var(--sheet-h));
+  /* 출처 표기와 같은 줄의 오른쪽 */
+  bottom: calc(94px + var(--sheet-h));
   z-index: 2;
   display: flex;
   gap: 12px;
@@ -140,7 +121,7 @@
   position: absolute;
   inset: 0;
   overflow: auto;
-  padding: 148px 16px 104px;
+  padding: 148px 16px 104px calc(var(--inset-left) + 4px);
 }
 
 /* 실시간 레이어: 바람 입자 캔버스, 현재 값 표시, 파고 범례 */
@@ -511,16 +492,50 @@
   font: var(--md-label-small);
 }
 
-/* ---- 시트: Side sheet / Bottom sheet ---- */
+/* ---- 패널: 지도 위에 뜬 카드 하나. 좁은 화면에서는 아래에서 올라오는 시트 ---- */
 .sheet {
-  position: relative;
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 12px;
   z-index: 4;
-  overflow: auto;
-  border-left: 1px solid var(--md-outline-variant);
-  background: var(--md-surface-container-low);
+  display: flex;
+  flex-direction: column;
+  width: var(--side-sheet-width);
+  overflow: hidden;
+  border-radius: var(--md-shape-xl);
+  /* 지도가 비쳐 보여 화면이 한 장으로 이어진다 */
+  background: color-mix(in srgb, var(--md-surface-container-low) 86%, transparent);
+  /* 접두사 없는 속성만 적는다. -webkit- 속성을 함께 적으면 빌드 도구가 이것을 지워 Chrome에서 흐림이 사라진다 */
+  backdrop-filter: blur(20px) saturate(1.4);
+  box-shadow: var(--md-elevation-3);
 }
 .sheet__handle {
   display: none;
+}
+.sheet__content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+/* 패널 안의 구획(추천 탭, 설정 탭). 테두리 있는 상자 대신 얇은 선으로만 나눈다 */
+.blocks__title {
+  padding: 20px 24px 0;
+  font: var(--md-title-large);
+}
+.block {
+  margin: 0 24px;
+  border-top: 1px solid var(--md-outline-variant);
+}
+.blocks__title + .block {
+  border-top: 0;
+}
+.block > .sheet-body {
+  padding-right: 0;
+  padding-left: 0;
+}
+.block .sheet-title {
+  font: var(--md-title-medium);
 }
 .sheet-body {
   display: flex;
@@ -768,7 +783,8 @@
 }
 .snackbar {
   position: absolute;
-  left: 50%;
+  /* 패널을 뺀 지도 영역의 가운데 */
+  left: calc(50% + var(--inset-left) / 2);
   bottom: 24px;
   z-index: 10;
   max-width: calc(100% - 32px);
@@ -789,11 +805,11 @@
 /* 좁은 화면과 중간 화면: 포인트 상세가 Bottom sheet가 된다 */
 @media (max-width: 839px) {
   .mapapp {
-    grid-template-columns: minmax(0, 1fr);
+    --inset-left: 12px;
   }
-  /* 손잡이 32 + 제목 28 + 부제 20에 여백을 더한 높이. 그 아래 줄이 반쯤 잘려 보이지 않게 한다 */
+  /* 손잡이 24 + 탭 60 + 제목 28 + 부제 20에 여백을 더한 높이. 그 아래 줄이 반쯤 잘려 보이지 않게 한다 */
   .mapapp[data-sheet='collapsed'] {
-    --sheet-h: 92px;
+    --sheet-h: 148px;
   }
   .mapapp[data-sheet='half'] {
     --sheet-h: 46%;
@@ -806,27 +822,29 @@
     display: none;
   }
   .sheet {
-    position: absolute;
+    top: auto;
     left: 0;
     right: 0;
     bottom: 0;
+    width: auto;
     height: var(--sheet-h);
-    border-left: 0;
     border-radius: var(--md-shape-xl) var(--md-shape-xl) 0 0;
-    box-shadow: var(--md-elevation-3);
+    /* 휴대폰에서는 배경 흐림이 느려질 수 있다. 흐림 없이 비치면 글자가 읽기 어려워 불투명하게 둔다 */
+    background: var(--md-surface-container-low);
+    backdrop-filter: none;
     transition: height 0.25s;
   }
   .sheet__handle {
-    position: sticky;
-    top: 0;
-    z-index: 1;
     display: grid;
+    flex: none;
     place-items: center;
     width: 100%;
-    height: 32px;
+    height: 24px;
     border: 0;
-    border-radius: var(--md-shape-xl) var(--md-shape-xl) 0 0;
-    background: var(--md-surface-container-low);
+    background: none;
+  }
+  .tabs {
+    margin-top: 0;
   }
   .sheet__handle span {
     width: 32px;
@@ -836,7 +854,7 @@
     opacity: 0.4;
   }
   .sheet-body {
-    padding-top: 4px;
+    padding-top: 12px;
   }
   /* 좁은 화면에서는 검색이 가로를 다 쓰고, 지도 컨트롤과 범례가 그 아래·위로 비켜난다 */
   .mapapp__top {
@@ -856,6 +874,9 @@
   }
   .alert-chip {
     max-width: calc(100% - 64px);
+  }
+  .mapview .maplibregl-ctrl-bottom-left {
+    right: 0;
   }
   /* 오른쪽은 지도 컨트롤이 세로로 차지하므로 범례는 왼쪽에 둔다 */
   .legend {
@@ -885,40 +906,7 @@
   }
 }
 
-/* ---- 추천, 설정 화면 ---- */
-.page {
-  display: grid;
-  gap: 16px;
-  max-width: 760px;
-  margin: 0 auto;
-  padding: 24px 16px 48px;
-}
-.page__title {
-  font: 400 28px/36px var(--md-font);
-}
-.page__lead {
-  color: var(--md-on-surface-variant);
-  font: var(--md-body-large);
-}
-.card {
-  border: 1px solid var(--md-outline-variant);
-  border-radius: var(--md-shape-md);
-  background: var(--md-surface-container-low);
-}
-.field {
-  display: grid;
-  gap: 4px;
-  font: var(--md-label-large);
-}
-.field select {
-  height: 56px;
-  padding: 0 16px;
-  border: 1px solid var(--md-outline);
-  border-radius: var(--md-shape-xs);
-  background: var(--md-surface);
-  color: var(--md-on-surface);
-  font: var(--md-body-large);
-}
+/* ---- 설정 탭의 내용 ---- */
 .grade-guide {
   display: grid;
   gap: 12px;

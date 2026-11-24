@@ -12,12 +12,7 @@ function Loading() {
 }
 
 const MapApp = dynamic(() => import('./MapApp'), { ssr: false, loading: Loading });
-const RecommendPage = dynamic(() => import('@/components/spot/RecommendPage'), { ssr: false, loading: Loading });
 
 export default function MapAppLoader() {
   return <MapApp />;
-}
-
-export function RecommendPageLoader() {
-  return <RecommendPage />;
 }
