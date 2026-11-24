@@ -52,6 +52,46 @@ a {
   outline-offset: 2px;
 }
 
+/*
+ * 스크롤 바. 운영체제 기본 막대(회색 홈과 네모난 막대) 대신 화면의 다른 요소처럼 둥글고 얇게 그린다.
+ * 홈은 투명하고, 막대는 글자 색을 옅게 섞은 색이라 밝은 테마와 어두운 테마에 함께 맞는다.
+ * 평소에는 옅고, 스크롤 영역에 마우스를 올리면 진해지고, 막대를 잡으면 강조색이 된다.
+ */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  min-height: 40px;
+  /* 투명한 테두리만큼 안으로 들여 그려, 보이는 굵기는 4px이고 잡는 영역은 12px이다 */
+  border: 4px solid transparent;
+  border-radius: var(--md-shape-full);
+  background-color: color-mix(in srgb, var(--md-on-surface) 20%, transparent);
+  background-clip: content-box;
+}
+:hover::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--md-on-surface) 36%, transparent);
+}
+::-webkit-scrollbar-thumb:hover {
+  border-width: 3px;
+  background-color: color-mix(in srgb, var(--md-on-surface) 52%, transparent);
+}
+::-webkit-scrollbar-thumb:active {
+  border-width: 3px;
+  background-color: var(--md-primary);
+}
+/* 위 선택자를 모르는 브라우저(Firefox)는 표준 속성으로 같은 느낌을 낸다 */
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--md-on-surface) 32%, transparent) transparent;
+  }
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;
