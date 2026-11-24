@@ -22,10 +22,11 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const MAIN = 'main';
-const DEV = { a: 'dev-a', b: 'dev-b' };
+const DEV = { a: 'dev-a', b: 'dev-b', c: 'dev-c' };
 const ROLE_DOC = {
   'dev-a': 'docs/roles/developer-a-data-risk.md',
   'dev-b': 'docs/roles/developer-b-map-ui.md',
+  'dev-c': 'docs/roles/developer-c-validation.md',
 };
 const THROTTLE_MS = 10 * 60 * 1000;
 
@@ -247,7 +248,7 @@ function doPull(isStart) {
     syncDeps(g.dir);
     if (isStart) {
       say('[git-sync] 지금 main 브랜치다. main에서는 작업하지 않는다.');
-      say('[git-sync] 사용자에게 개발자 A인지 B인지 묻고 `node scripts/git-sync.mjs use a` 또는 `use b`를 실행한다.');
+      say('[git-sync] 사용자에게 개발자 A, B, C 중 누구인지 묻고 `node scripts/git-sync.mjs use a`, `use b`, `use c` 중 맞는 것을 실행한다.');
     }
     return;
   }
@@ -276,7 +277,7 @@ function doSave() {
   const g = guard();
   if (g.skip) return;
   if (g.branch === MAIN) {
-    if (isDirty()) say('[git-sync] main 브랜치에 커밋되지 않은 변경이 있다. dev-a 또는 dev-b로 옮겨야 한다.');
+    if (isDirty()) say('[git-sync] main 브랜치에 커밋되지 않은 변경이 있다. 자기 브랜치(dev-a, dev-b, dev-c)로 옮겨야 한다.');
     return;
   }
   const c = commitAll(g.branch);
@@ -308,7 +309,7 @@ function doShip() {
   const g = guard();
   if (g.skip) return false;
   if (g.branch === MAIN) {
-    say('[git-sync] main에서는 ship 할 수 없다. dev-a 또는 dev-b에서 실행한다.');
+    say('[git-sync] main에서는 ship 할 수 없다. 자기 브랜치(dev-a, dev-b, dev-c)에서 실행한다.');
     return false;
   }
   if (!g.remote) {
@@ -343,7 +344,7 @@ function doShip() {
 function doUse() {
   const branch = DEV[cmdArg];
   if (!branch) {
-    say('[git-sync] 사용법: node scripts/git-sync.mjs use a   (또는 use b)');
+    say('[git-sync] 사용법: node scripts/git-sync.mjs use a   (또는 use b, use c)');
     return false;
   }
   const g = guard();
