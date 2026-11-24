@@ -79,3 +79,17 @@ export const BONUS = {
 export const LOW_CONFIDENCE_MARGIN = 5;
 
 export const GRADE_ORDER: readonly Grade[] = ['safe', 'caution', 'danger'];
+
+/**
+ * 추천(PRD F4). 정렬 키 = 위험 점수 + walkPointsPerMinute × 도보 분.
+ * PRD에는 "위험도가 낮고 접근성이 좋은"까지만 있어 가중치는 정한 값이다.
+ */
+export const RECOMMEND = {
+  maxItems: 5,
+  defaultRadiusKm: 30,
+  walkPointsPerMinute: 1.5,
+  /** 도보 시간을 모르면 이만큼으로 본다(뒤로 밀린다) */
+  unknownWalkMinutes: 20,
+  /** 지형 요인 wave_exposure 점수가 이 이하이면 "파랑이 가려지는" */
+  shelteredMaxExposure: 30,
+} as const;

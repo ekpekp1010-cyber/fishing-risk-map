@@ -59,6 +59,16 @@ export function parseIntIn(value: string | null, name: string, min: number, max:
   return n;
 }
 
+export function parseNumberIn(value: string | null, name: string, min: number, max: number, fallback?: number): number {
+  if (value === null || value === '') {
+    if (fallback === undefined) throw new ApiError('BAD_REQUEST', `${name}가 필요하다.`);
+    return fallback;
+  }
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < min || n > max) throw new ApiError('BAD_REQUEST', `${name}는 ${min}~${max} 사이 숫자여야 한다.`);
+  return n;
+}
+
 export function parseBbox(value: string | null): { west: number; south: number; east: number; north: number } | null {
   if (!value) return null;
   const p = value.split(',').map(Number);

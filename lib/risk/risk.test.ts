@@ -180,6 +180,30 @@ describe('computeHourlyRisk', () => {
   });
 });
 
+describe('예보 없음', () => {
+  it('핵심 예보가 모두 없으면 최소 caution, 원인 맨 앞에 안내', () => {
+    const none: HourConditions = {
+      ...calm,
+      waveHeightM: null,
+      swellHeightM: null,
+      swellPeriodS: null,
+      windSpeedMs: null,
+      windGustMs: null,
+      seaLevelM: null,
+    };
+    const r = computeHourlyRisk(none, pier, terrain(5));
+    expect(r.noForecast).toBe(true);
+    expect(r.score).toBe(40);
+    expect(r.grade).toBe('caution');
+    expect(r.confidence).toBe('low');
+    expect(r.causes).toEqual([{ code: 'no_forecast', label: '이 시간대 예보가 아직 없음' }]);
+  });
+
+  it('일부만 없으면 noForecast가 아니다', () => {
+    expect(computeHourlyRisk({ ...calm, seaLevelM: null }, pier, terrain(5)).noForecast).toBe(false);
+  });
+});
+
 describe('isStale', () => {
   it('6시간 초과면 true', () => {
     expect(isStale('2026-11-25T09:00:00Z', T)).toBe(false);

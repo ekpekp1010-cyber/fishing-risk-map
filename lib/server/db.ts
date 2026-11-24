@@ -1,7 +1,7 @@
 // Supabase 접근. service role 키를 쓰므로 Route Handler·배치에서만 쓴다.
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { AlertRow, ForecastCellRow, ForecastHourlyRow, SpotRow, TerrainScoreRow } from './db-types';
+import type { AlertRow, ForecastCellRow, ForecastHourlyRow, SpotRow, TerrainScoreRow, ZoneRow } from './db-types';
 import { requireEnv } from './env';
 
 let client: SupabaseClient | null = null;
@@ -44,6 +44,10 @@ export async function listSpotsInBox(box: { west: number; south: number; east: n
       .gte('lng', box.west)
       .lte('lng', box.east),
   );
+}
+
+export async function listZones(): Promise<ZoneRow[]> {
+  return check(await db().from('zones').select('id,spot_id,forecast_cell_id,terrain_score').order('id'));
 }
 
 export async function getSpot(id: string): Promise<SpotRow | null> {

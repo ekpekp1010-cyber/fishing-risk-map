@@ -10,3 +10,18 @@ type Box = { west: number; south: number; east: number; north: number };
 export function intersectsAoi(b: Box): boolean {
   return b.west <= AOI.east && b.east >= AOI.west && b.south <= AOI.north && b.north >= AOI.south;
 }
+
+/** 분석 지역에서 가장 가까운 점(지역 안이면 그 점 그대로) */
+export function nearestAoiPoint(p: { lat: number; lng: number }): { lat: number; lng: number } {
+  return {
+    lat: Math.min(AOI.north, Math.max(AOI.south, p.lat)),
+    lng: Math.min(AOI.east, Math.max(AOI.west, p.lng)),
+  };
+}
+
+/** 중심과 반경(km)을 덮는 위경도 상자 */
+export function boxAround(p: { lat: number; lng: number }, radiusKm: number): Box {
+  const dLat = radiusKm / 111.32;
+  const dLng = radiusKm / (111.32 * Math.max(0.01, Math.cos((p.lat * Math.PI) / 180)));
+  return { west: p.lng - dLng, south: p.lat - dLat, east: p.lng + dLng, north: p.lat + dLat };
+}

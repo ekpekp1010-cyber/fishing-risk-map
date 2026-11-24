@@ -32,6 +32,13 @@ export interface TerrainScoreRow {
   confidence: Confidence;
 }
 
+export interface ZoneRow {
+  id: string;
+  spot_id: string | null;
+  forecast_cell_id: string | null;
+  terrain_score: number | null;
+}
+
 export interface ForecastHourlyRow {
   cell_id: string;
   time: string;

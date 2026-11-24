@@ -117,6 +117,8 @@ export interface RiskDetail extends HourlyRisk {
   bonus: number;
   confidence: Confidence;
   forced: 'alert' | 'thunder' | null;
+  /** 핵심 예보(파고·바람·해수면)가 하나도 없어 시간대 위험을 계산하지 못함 */
+  noForecast: boolean;
 }
 
 /** 한 포인트·한 시각의 위험도. 계약의 HourlyRisk에 계산 내역을 더해 돌려준다. */
@@ -130,20 +132,29 @@ export function computeHourlyRisk(
   const bonus = computeBonus(h, spot);
   const confidence = confidenceOf(terrain, h, bonus.items);
   const raw = Math.min(100, V_WEIGHT * terrain.score + H_WEIGHT * h.score + bonus.total);
-  const score = leanRisky(Math.round(raw), confidence);
+  // 예보가 전혀 없으면 '안전'으로 내보내지 않는다(최소 '주의').
+  const noForecast = h.missing.length === 3;
+  const score = noForecast
+    ? Math.max(CAUTION_MIN, Math.round(raw))
+    : leanRisky(Math.round(raw), confidence);
 
   const live = activeAlerts(alerts, conditions.time);
   const forced = live.length > 0 ? 'alert' : h.thunder ? 'thunder' : null;
   const grade: Grade = forced ? 'danger' : gradeOf(score);
+  let causes = topCauses(h, terrain, live);
+  if (noForecast && !forced) {
+    causes = [{ code: 'no_forecast', label: '이 시간대 예보가 아직 없음' }, ...causes.filter((c) => c.code !== 'calm')].slice(0, 3);
+  }
 
   return {
     time: conditions.time,
     score,
     grade,
-    causes: topCauses(h, terrain, live),
+    causes,
     hazard: Math.round(h.score),
     bonus: bonus.total,
     confidence,
     forced,
+    noForecast,
   };
 }

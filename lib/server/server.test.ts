@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import spotRiskFixture from '../contract/fixtures/spot-risk.json';
-import { addHours, buildSpotRisk, buildSpots, floorHour, localClock, nextHighTide } from './assemble';
+import {
+  addHours,
+  buildRecommendations,
+  buildSpotRisk,
+  buildSpots,
+  buildZoneGrades,
+  distanceKm,
+  floorHour,
+  localClock,
+  nextHighTide,
+  scoreSpotsAt,
+} from './assemble';
 import { isoZ } from './db';
 import type { AlertRow, ForecastHourlyRow, SpotRow, TerrainScoreRow } from './db-types';
 import { ApiError, parseBbox, parseIntIn, parseTime } from './http';
@@ -186,5 +197,81 @@ describe('assemble', () => {
 
   it('예보가 없으면 null', () => {
     expect(buildSpotRisk(spot, terrain, [], [], T, 1, NOW)).toBeNull();
+  });
+});
+
+describe('zones & recommendations', () => {
+  const pier: SpotRow = {
+    ...spot,
+    id: 'bay-st-pier',
+    name: '베이 스트리트 부두',
+    type: 'pier',
+    lat: 44.6302,
+    lng: -124.0521,
+    access_walk_minutes: 3,
+    access_from: '베이프런트 주차장',
+  };
+  const beach: SpotRow = { ...spot, id: 'nye-beach', name: '나이 비치', type: 'beach', lat: 44.6408, lng: -124.0638, access_walk_minutes: 20, access_from: null };
+  const far: SpotRow = { ...pier, id: 'far-pier', lat: 45.5, lng: -124.0 };
+  const flat = (id: string, score: number, exposure: number): TerrainScoreRow => ({
+    ...terrain,
+    spot_id: id,
+    score,
+    slope_deg: 1,
+    elevation_m: 6,
+    egress_min_elevation_m: 6,
+    factors: [{ code: 'wave_exposure', label: '노출', score: exposure }],
+  });
+  const terrains = [terrain, flat(pier.id, 10, 15), flat(beach.id, 30, 70), flat(far.id, 10, 15)];
+  const calmRow = fRow(T, { sea_level_m: -1 });
+  const scored = scoreSpotsAt(T, [spot, pier, beach, far], terrains, [calmRow], []);
+  const origin = { lat: spot.lat, lng: spot.lng };
+
+  it('구역: 포인트가 있으면 그 등급, 없으면 구역 지형 점수, 지형 점수도 없으면 뺀다', () => {
+    const zones = [
+      { id: 'zone-a', spot_id: pier.id, forecast_cell_id: null, terrain_score: null },
+      { id: 'zone-b', spot_id: null, forecast_cell_id: calmRow.cell_id, terrain_score: 90 },
+      { id: 'zone-c', spot_id: null, forecast_cell_id: null, terrain_score: null },
+    ];
+    const res = buildZoneGrades(T, zones, scored, [calmRow], []);
+    // zone-b: 고도를 몰라 0 m로 보므로 해수면 -1 m에서도 조석 여유 1 m(주의) + 저지대 가산 10점
+    // → 0.4·90 + 0.6·40 + 10 = 70 → danger (위험한 쪽 판정)
+    expect(res.grades).toEqual({ 'zone-a': scored.find((s) => s.spot.id === pier.id)!.risk.grade, 'zone-b': 'danger' });
+  });
+
+  it('추천: danger 제외, 반경 밖 제외, 기준 포인트보다 점수가 낮은 곳만, 점수+도보 순', () => {
+    const res = buildRecommendations(T, origin, 30, scored, spot.id);
+    const base = scored.find((s) => s.spot.id === spot.id)!.risk.score;
+    expect(res.items.map((i) => i.id)).toEqual(['bay-st-pier', 'nye-beach']);
+    for (const i of res.items) {
+      expect(i.grade).not.toBe('danger');
+      expect(i.score).toBeLessThan(base);
+    }
+    expect(res.items[0].reason).toBe('파랑이 가려지는 부두, 베이프런트 주차장에서 3분');
+    expect(res.items[1].reason).toBe('해변, 도보 20분');
+  });
+
+  it('추천: 경보가 있으면 모두 danger라 빈 목록', () => {
+    const alerts: AlertRow[] = [
+      { id: 'a', source: 'NWS', event: 'Coastal Flood Warning', headline: '해안 침수 경보 발효 중', severity: null, onset: null, expires: addHours(T, 5), fetched_at: T },
+    ];
+    const s = scoreSpotsAt(T, [spot, pier, beach], terrains, [calmRow], alerts);
+    expect(buildRecommendations(T, origin, 30, s, null).items).toEqual([]);
+  });
+
+  it('추천: 예보가 없는 시각의 포인트는 추천하지 않는다', () => {
+    const s = scoreSpotsAt(addHours(T, 200), [pier, beach], terrains, [calmRow], []);
+    expect(s.every((x) => x.risk.noForecast && x.risk.grade !== 'safe')).toBe(true);
+    expect(buildRecommendations(addHours(T, 200), origin, 30, s, null).items).toEqual([]);
+  });
+
+  it('추천은 최대 5곳', () => {
+    const many = Array.from({ length: 8 }, (_, i) => ({ ...pier, id: `p${i}` }));
+    const s = scoreSpotsAt(T, many, many.map((m) => flat(m.id, 10, 10)), [calmRow], []);
+    expect(buildRecommendations(T, origin, 30, s, null).items).toHaveLength(5);
+  });
+
+  it('거리 계산', () => {
+    expect(distanceKm({ lat: 44.6, lng: -124.05 }, { lat: 44.7, lng: -124.05 })).toBeCloseTo(11.1, 1);
   });
 });

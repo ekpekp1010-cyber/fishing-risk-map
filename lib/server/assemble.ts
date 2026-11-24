@@ -1,13 +1,26 @@
 // DB 행 → API 응답. 네트워크·DB에 의존하지 않는 순수 함수라 단위 테스트한다.
 
 import type {
+  Grade,
+  RecommendationItem,
+  RecommendationsResponse,
   RiskAlert,
   SpotRiskResponse,
   SpotSummary,
   SpotsResponse,
+  SpotType,
+  ZoneGradesResponse,
 } from '../contract/types';
-import { computeHourlyRisk, isStale, type HourConditions, type SpotProfile, type TerrainInput } from '../risk';
-import type { AlertRow, ForecastHourlyRow, SpotRow, TerrainScoreRow } from './db-types';
+import {
+  computeHourlyRisk,
+  isStale,
+  RECOMMEND,
+  type HourConditions,
+  type RiskDetail,
+  type SpotProfile,
+  type TerrainInput,
+} from '../risk';
+import type { AlertRow, ForecastHourlyRow, SpotRow, TerrainScoreRow, ZoneRow } from './db-types';
 
 const HOUR_MS = 3_600_000;
 export const PLACE_TZ = 'America/Los_Angeles';
@@ -101,6 +114,35 @@ const groupBy = <T, K>(xs: T[], key: (x: T) => K) => {
   return m;
 };
 
+export interface ScoredSpot {
+  spot: SpotRow;
+  terrain: TerrainScoreRow;
+  risk: RiskDetail;
+}
+
+/** 한 시각에 포인트들의 위험도를 계산한다. 지형 분석 전 포인트는 뺀다. */
+export function scoreSpotsAt(
+  time: string,
+  spots: SpotRow[],
+  terrains: TerrainScoreRow[],
+  forecast: ForecastHourlyRow[],
+  alerts: AlertRow[],
+): ScoredSpot[] {
+  const terrainBy = new Map(terrains.map((t) => [t.spot_id, t]));
+  const seriesBy = groupBy(forecast, (r) => r.cell_id);
+  const live = alertsAt(alerts, time);
+  const out: ScoredSpot[] = [];
+  for (const spot of spots) {
+    const terrain = terrainBy.get(spot.id);
+    if (!terrain) continue;
+    const series = (spot.forecast_cell_id && seriesBy.get(spot.forecast_cell_id)) || [];
+    const row = series.find((r) => r.time === time);
+    const risk = computeHourlyRisk(toConditions(time, row, series), toProfile(spot, terrain), toTerrainInput(terrain), live);
+    out.push({ spot, terrain, risk });
+  }
+  return out;
+}
+
 export function buildSpots(
   time: string,
   spots: SpotRow[],
@@ -108,20 +150,121 @@ export function buildSpots(
   forecast: ForecastHourlyRow[],
   alerts: AlertRow[],
 ): SpotsResponse {
-  const terrainBy = new Map(terrains.map((t) => [t.spot_id, t]));
-  const seriesBy = groupBy(forecast, (r) => r.cell_id);
-  const live = alertsAt(alerts, time);
-  const out: SpotSummary[] = [];
-  for (const s of spots) {
-    const t = terrainBy.get(s.id);
-    if (!t) continue; // 지형 분석 전 포인트는 내보내지 않는다
-    const series = (s.forecast_cell_id && seriesBy.get(s.forecast_cell_id)) || [];
-    const row = series.find((r) => r.time === time);
-    const r = computeHourlyRisk(toConditions(time, row, series), toProfile(s, t), toTerrainInput(t), live);
-    out.push({ id: s.id, name: s.name, type: s.type, lat: s.lat, lng: s.lng, score: r.score, grade: r.grade, confidence: r.confidence });
-  }
+  const out: SpotSummary[] = scoreSpotsAt(time, spots, terrains, forecast, alerts).map(({ spot: s, risk: r }) => ({
+    id: s.id,
+    name: s.name,
+    type: s.type,
+    lat: s.lat,
+    lng: s.lng,
+    score: r.score,
+    grade: r.grade,
+    confidence: r.confidence,
+  }));
   out.sort((a, b) => b.lat - a.lat);
   return { time, spots: out };
+}
+
+// ---- 3. 구역 등급 ------------------------------------------------------------
+
+/**
+ * 포인트가 있는 구역은 그 포인트의 등급을 쓴다.
+ * 포인트가 없는 구역은 구역의 지형 점수와 예보 셀로 계산하되, 고도를 몰라 위험한 쪽으로 본다
+ * (고도 0 m, 신뢰도 낮음). 지형 점수도 없으면 내보내지 않는다.
+ */
+export function buildZoneGrades(
+  time: string,
+  zones: ZoneRow[],
+  scored: ScoredSpot[],
+  forecast: ForecastHourlyRow[],
+  alerts: AlertRow[],
+): ZoneGradesResponse {
+  const bySpot = new Map(scored.map((s) => [s.spot.id, s.risk.grade]));
+  const seriesBy = groupBy(forecast, (r) => r.cell_id);
+  const live = alertsAt(alerts, time);
+  const grades: Record<string, Grade> = {};
+  for (const z of zones) {
+    const g = z.spot_id ? bySpot.get(z.spot_id) : undefined;
+    if (g) {
+      grades[z.id] = g;
+      continue;
+    }
+    if (z.terrain_score === null) continue;
+    const series = (z.forecast_cell_id && seriesBy.get(z.forecast_cell_id)) || [];
+    const row = series.find((r) => r.time === time);
+    const profile: SpotProfile = { type: 'beach', elevationM: 0, egressMinElevationM: null, slopeDeg: 0 };
+    const terrain: TerrainInput = { score: z.terrain_score, confidence: 'low', factors: [] };
+    grades[z.id] = computeHourlyRisk(toConditions(time, row, series), profile, terrain, live).grade;
+  }
+  return { time, grades };
+}
+
+// ---- 4. 추천 ----------------------------------------------------------------
+
+const TYPE_KO: Record<SpotType, string> = {
+  jetty: '방파제',
+  pier: '부두',
+  rocks: '갯바위',
+  beach: '해변',
+  estuary: '하구',
+};
+
+/** 추천 이유 한 줄. 예: "파랑이 가려지는 부두, 베이프런트 주차장에서 3분" */
+export function recommendReason(s: ScoredSpot): string {
+  const exposure = s.terrain.factors.find((f) => f.code === 'wave_exposure');
+  const sheltered = exposure !== undefined && exposure.score <= RECOMMEND.shelteredMaxExposure;
+  const place = `${sheltered ? '파랑이 가려지는 ' : ''}${TYPE_KO[s.spot.type]}`;
+  const walk = s.spot.access_walk_minutes;
+  const access = walk === null ? '' : s.spot.access_from ? `, ${s.spot.access_from}에서 ${walk}분` : `, 도보 ${walk}분`;
+  const caution = s.risk.grade === 'caution' && s.risk.causes[0] ? ` (주의: ${s.risk.causes[0].label})` : '';
+  return `${place}${access}${caution}`;
+}
+
+export function rankKey(s: ScoredSpot): number {
+  return s.risk.score + RECOMMEND.walkPointsPerMinute * (s.spot.access_walk_minutes ?? RECOMMEND.unknownWalkMinutes);
+}
+
+/**
+ * 같은 시각 기준 danger를 빼고 점수+도보 시간으로 정렬해 최대 5곳.
+ * excludeSpotId가 있으면 그 포인트보다 점수가 낮은 곳만(PRD F4 수용 기준).
+ */
+export function buildRecommendations(
+  time: string,
+  origin: { lat: number; lng: number },
+  radiusKm: number,
+  scored: ScoredSpot[],
+  excludeSpotId: string | null,
+): RecommendationsResponse {
+  const base = excludeSpotId ? scored.find((s) => s.spot.id === excludeSpotId) : undefined;
+  const limit = base ? base.risk.score : Number.POSITIVE_INFINITY;
+  const items: RecommendationItem[] = scored
+    .filter((s) => s.spot.id !== excludeSpotId)
+    .filter((s) => distanceKm(origin, s.spot) <= radiusKm)
+    .filter((s) => !s.risk.noForecast) // 예보 없는 포인트는 추천하지 않는다
+    .filter((s) => s.risk.grade !== 'danger' && s.risk.score < limit)
+    .sort((a, b) => rankKey(a) - rankKey(b) || a.risk.score - b.risk.score)
+    .slice(0, RECOMMEND.maxItems)
+    .map((s) => ({
+      id: s.spot.id,
+      name: s.spot.name,
+      type: s.spot.type,
+      lat: s.spot.lat,
+      lng: s.spot.lng,
+      score: s.risk.score,
+      grade: s.risk.grade as Exclude<Grade, 'danger'>,
+      walkMinutes: s.spot.access_walk_minutes ?? 0,
+      reason: recommendReason(s),
+    }));
+  return { time, items };
+}
+
+/** 두 지점 사이 거리(km, 구면 근사) */
+export function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const R = 6371;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
 }
 
 const WORST: Array<'low' | 'medium' | 'high'> = ['low', 'medium', 'high'];

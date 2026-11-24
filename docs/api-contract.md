@@ -96,6 +96,7 @@ B는 이 문서의 예시 응답(`lib/contract/fixtures/`)만으로 화면을 �
 ```
 
 - `causes`는 항상 영향이 큰 순서로 최대 3개다.
+- 그 시간대 예보가 없으면(수집 범위 밖, 약 4일 뒤) 점수는 최소 40(`caution`), 첫 원인은 `{ "code": "no_forecast", "label": "이 시간대 예보가 아직 없음" }`이다. 이런 포인트는 추천에서 빠진다.
 - `stale`은 예보 수집 후 6시간이 넘으면 `true`다. 화면은 '데이터 지연' 배지를 붙인다.
 - `alerts`가 하나라도 있으면 해당 시간의 `grade`는 `"danger"`다.
 
@@ -110,6 +111,8 @@ B는 이 문서의 예시 응답(`lib/contract/fixtures/`)만으로 화면을 �
 
 `GET /api/zones/grades?time=<시각>`
 
+구역에 포인트(`spotId`)가 있으면 그 포인트의 등급이다. 포인트가 없는 구역은 구역의 지형 점수로 계산하되 고도를 몰라 위험한 쪽으로 본다. 지형 점수가 없는 구역은 `grades`에 없다(화면은 회색 등 '정보 없음'으로 그린다).
+
 ```json
 {
   "time": "2026-11-25T15:00:00Z",
@@ -123,6 +126,8 @@ B는 이 문서의 예시 응답(`lib/contract/fixtures/`)만으로 화면을 �
 
 같은 시각에 위험이 낮고 접근이 쉬운 포인트를 최대 5곳 돌려준다. `"danger"` 등급은 포함하지 않는다.
 `excludeSpotId`를 주면 그 포인트보다 점수가 낮은 곳만 돌려준다.
+정렬은 `점수 + 1.5 × 도보 분`이 작은 순서다. `lat`, `lng`는 필수이고, 반경 안에 분석 지역이 없으면 `OUT_OF_COVERAGE`다.
+경보가 발효 중이면 모든 포인트가 `danger`이므로 `items`가 비어 있다. 화면은 "지금은 추천할 곳이 없다"를 보여 준다.
 
 ```json
 {
@@ -166,6 +171,7 @@ A는 위 네 응답의 예시를 `lib/contract/fixtures/`에 `spots.json`, `spot
 | 날짜 | 버전 | 내용 |
 | --- | --- | --- |
 | 2026-11-24 | v0 | 첫 초안 |
+| 2026-11-24 | v0 | `/api/zones/grades`, `/api/recommendations` 구현. 원인 코드 `no_forecast` 추가(필드 변경 없음) |
 | 2026-11-24 | v0 | 오류 코드 `FORECAST_UNAVAILABLE`(503) 추가. `/api/spots`, `/api/spots/{id}/risk` 구현(DB 연결 전) |
 | 2026-11-24 | v0 | `lib/contract/types.ts`, fixtures 7개 추가. `ApiErrorResponse`, `ZONES_LAYER`, `ZoneFeatureProperties` 타입 추가(기존 필드 변경 없음) |
 
@@ -179,6 +185,7 @@ A는 위 네 응답의 예시를 `lib/contract/fixtures/`에 `spots.json`, `spot
 - [ ] (2026-11-24, B) 지형 타일 주소와 위험 구역 PMTiles 주소를 알려 주세요. `.env.local`의 `NEXT_PUBLIC_TERRAIN_TILES_URL`, `NEXT_PUBLIC_ZONES_PMTILES_URL`에 넣으면 바로 바뀝니다. 구역 도형의 속성 이름은 계약대로 `zoneId`를 씁니다.
 - [ ] (2026-11-24, B) API 네 개가 준비되면 알려 주세요. `NEXT_PUBLIC_USE_FIXTURES=0`으로 바꿔 연결을 확인하겠습니다.
   - (2026-11-24, A) 1·2번 API 코드는 올렸습니다. Supabase에 포인트·지형 점수가 들어가기 전에는 빈 목록이나 오류가 나오니 아직 예시 데이터를 쓰세요. 3·4번은 다음 차례입니다.
+  - (2026-11-24, A) 3·4번(`/api/zones/grades`, `/api/recommendations`)도 올렸습니다. 네 API 모두 실제 DB로 응답을 확인했습니다. 구역 도형(PMTiles)이 아직 없어 `grades`는 빈 객체입니다.
   - (2026-11-24, A) 원격 DB에 연결해 1·2번 응답을 확인했습니다. 지금 DB의 포인트는 확인용 `zz-api-check`(이름 "API 확인용", 사우스 제티 위치) 하나뿐이고, 실제 포인트는 1단계 검수 뒤에 넣습니다. 연결 시험 때 이 포인트가 보이는 것은 정상입니다. 예보는 자동 수집 전이라 수집 후 6시간이 지나면 `stale: true`로 나옵니다.
 - [ ] (2026-11-24, B) 실시간 바람·파고 격자를 서버에서 내려 주는 API가 있으면 좋겠습니다. 지금은 지도의 바람 흐름·파고 레이어가 브라우저에서 Open-Meteo를 직접 부릅니다(`lib/map/live.ts`, 7×7 격자, 15분 캐시). 예보 수집기가 이미 같은 값을 모으니, 운영 전에 그쪽 캐시를 쓰도록 바꾸고 싶습니다. 필요한 모양은 `LiveGrid` 타입(경도·위도 목록, 바람 u·v, 파고, 기준 시각)입니다.
 - [ ] (2026-11-24, B) 가능하면 경사, 과거 침수 흔적 래스터 타일도 부탁합니다. 지금 '경사' 레이어는 지형 음영으로 대신하고 있고, '과거 침수 흔적' 레이어는 꺼져 있습니다.
