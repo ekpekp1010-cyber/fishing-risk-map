@@ -13,6 +13,7 @@ import recommendationsEmptyJson from './recommendations-empty.json';
 import recommendationsJson from './recommendations.json';
 import spotRiskStaleJson from './spot-risk-stale.json';
 import spotRiskJson from './spot-risk.json';
+import spotsAlertJson from './spots-alert.json';
 import spotsEmptyJson from './spots-empty.json';
 import spotsJson from './spots.json';
 import zoneGradesJson from './zone-grades.json';
@@ -23,6 +24,7 @@ function typed<T>(value: unknown): T {
 
 export const spots = typed<SpotsResponse>(spotsJson);
 export const spotsEmpty = typed<SpotsResponse>(spotsEmptyJson);
+export const spotsAlert = typed<SpotsResponse>(spotsAlertJson);
 export const spotRisk = typed<SpotRiskResponse>(spotRiskJson);
 export const spotRiskStale = typed<SpotRiskResponse>(spotRiskStaleJson);
 export const zoneGrades = typed<ZoneGradesResponse>(zoneGradesJson);

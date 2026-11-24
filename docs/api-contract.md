@@ -28,6 +28,7 @@ B는 이 문서의 예시 응답(`lib/contract/fixtures/`)만으로 화면을 �
 `GET /api/spots?bbox=<서>,<남>,<동>,<북>&time=<시각>`
 
 지도 화면 범위 안의 포인트와 그 시각의 등급을 돌려준다. `time`을 생략하면 현재 정시다.
+`alerts`는 그 시각에 발효 중인 경보 목록이다(모양은 2번 상세 응답의 `alerts`와 같다). 하나라도 있으면 모든 포인트가 `danger`다. 실제 API는 항상 넣어 보낸다(없으면 `[]`).
 
 ```json
 {
@@ -43,7 +44,8 @@ B는 이 문서의 예시 응답(`lib/contract/fixtures/`)만으로 화면을 �
       "grade": "danger",
       "confidence": "medium"
     }
-  ]
+  ],
+  "alerts": []
 }
 ```
 
@@ -169,6 +171,7 @@ A는 위 네 응답의 예시를 `lib/contract/fixtures/`에 `spots.json`, `spot
 | --- | --- |
 | `spots.json` | 세 등급 모두 |
 | `spots-empty.json` | 빈 목록 |
+| `spots-alert.json` | 경보 발효 중, 모든 포인트 `danger` |
 | `spot-risk.json` | `alerts` 있음, 모든 시간 `danger` |
 | `spot-risk-stale.json` | `stale: true`, `alerts` 없음 |
 | `zone-grades.json` | 구역 등급 |
@@ -183,6 +186,7 @@ A는 위 네 응답의 예시를 `lib/contract/fixtures/`에 `spots.json`, `spot
 | 날짜 | 버전 | 내용 |
 | --- | --- | --- |
 | 2026-11-24 | v0 | 첫 초안 |
+| 2026-11-24 | v0 | `SpotsResponse.alerts` 추가(B 요청), 예시 `spots-alert.json` 추가 |
 | 2026-11-24 | v0 | `/api/zones/grades`, `/api/recommendations` 구현. 원인 코드 `no_forecast` 추가(필드 변경 없음) |
 | 2026-11-24 | v0 | 오류 코드 `FORECAST_UNAVAILABLE`(503) 추가. `/api/spots`, `/api/spots/{id}/risk` 구현(DB 연결 전) |
 | 2026-11-24 | v0 | `lib/contract/types.ts`, fixtures 7개 추가. `ApiErrorResponse`, `ZONES_LAYER`, `ZoneFeatureProperties` 타입 추가(기존 필드 변경 없음) |
@@ -204,5 +208,6 @@ A는 위 네 응답의 예시를 `lib/contract/fixtures/`에 `spots.json`, `spot
   - (2026-11-24, A) 원격 DB에 연결해 1·2번 응답을 확인했습니다. 지금 DB의 포인트는 확인용 `zz-api-check`(이름 "API 확인용", 사우스 제티 위치) 하나뿐이고, 실제 포인트는 1단계 검수 뒤에 넣습니다. 연결 시험 때 이 포인트가 보이는 것은 정상입니다. 예보는 자동 수집 전이라 수집 후 6시간이 지나면 `stale: true`로 나옵니다.
 - [ ] (2026-11-24, B) 실시간 바람·파고 격자를 서버에서 내려 주는 API가 있으면 좋겠습니다. 지금은 지도의 바람 흐름·파고 레이어가 브라우저에서 Open-Meteo를 직접 부릅니다(`lib/map/live.ts`, 7×7 격자, 15분 캐시). 예보 수집기가 이미 같은 값을 모으니, 운영 전에 그쪽 캐시를 쓰도록 바꾸고 싶습니다. 필요한 모양은 `LiveGrid` 타입(경도·위도 목록, 바람 u·v, 파고, 기준 시각)입니다.
 - [ ] (2026-11-24, B) 가능하면 경사, 과거 침수 흔적 래스터 타일도 부탁합니다. 지금 '경사' 레이어는 지형 음영으로 대신하고 있고, '과거 침수 흔적' 레이어는 꺼져 있습니다.
-- [ ] (2026-11-24, B) 포인트 목록 응답(`GET /api/spots`)에 그 시각에 발효 중인 경보 목록 `alerts`를 넣어 주세요(모양은 상세 응답의 `alerts`와 같게). 지도 위와 추천 목록에 "경보 발효 중이라 전 포인트가 위험"이라는 안내를 띄우는데, 지금은 경보가 포인트 상세에만 있어서 목록의 첫 포인트 상세를 한 번 더 불러 읽습니다(`lib/hooks/api.ts`의 `useRegionAlerts`). 필드 추가라 기존 화면에는 영향이 없습니다.
+- [x] (2026-11-24, B) 포인트 목록 응답(`GET /api/spots`)에 그 시각에 발효 중인 경보 목록 `alerts`를 넣어 주세요(모양은 상세 응답의 `alerts`와 같게). 지도 위와 추천 목록에 "경보 발효 중이라 전 포인트가 위험"이라는 안내를 띄우는데, 지금은 경보가 포인트 상세에만 있어서 목록의 첫 포인트 상세를 한 번 더 불러 읽습니다(`lib/hooks/api.ts`의 `useRegionAlerts`). 필드 추가라 기존 화면에는 영향이 없습니다.
+  - (2026-11-24, A) 넣었습니다. `alerts`는 그 시각에 시작했고 아직 끝나지 않은 경보만 담습니다. 예시는 `spots-alert.json`(`fixtures/index.ts`의 `spotsAlert`)입니다. `spots.json`은 세 등급 확인용이라 경보 없이 두었습니다. B의 임시 시뮬레이터가 깨지지 않게 타입은 `alerts?`(선택)로 두었지만 실제 API는 항상 보냅니다.
 

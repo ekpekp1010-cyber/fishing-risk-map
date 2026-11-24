@@ -35,14 +35,17 @@ def assert_score(score) -> None:
     assert isinstance(score, int) and 0 <= score <= 100, score
 
 
-@pytest.mark.parametrize("name", ["spots.json", "spots-empty.json"])
+@pytest.mark.parametrize("name", ["spots.json", "spots-empty.json", "spots-alert.json"])
 def test_spots(name):
     data = load(name)
     assert_hour(data["time"])
+    for a in data["alerts"]:
+        assert a["headline"] and ts(a["expires"]) > ts(data["time"])
     for s in data["spots"]:
         assert s["type"] in SPOT_TYPES and s["confidence"] in CONFIDENCE
         assert_score(s["score"])
-        assert s["grade"] == grade_of(s["score"])
+        # 경보가 있으면 모든 포인트가 danger(점수는 그대로)
+        assert s["grade"] == ("danger" if data["alerts"] else grade_of(s["score"]))
 
 
 @pytest.mark.parametrize("name", ["spot-risk.json", "spot-risk-stale.json"])
@@ -90,6 +93,7 @@ def test_required_cases_are_covered():
     """계약: 세 등급, stale true, alerts 있음, 빈 목록을 각각 하나 이상 포함한다."""
     grades = {s["grade"] for s in load("spots.json")["spots"]}
     assert grades == GRADES
+    assert load("spots-alert.json")["alerts"]
     risks = [load("spot-risk.json"), load("spot-risk-stale.json")]
     assert any(r["stale"] for r in risks)
     assert any(r["alerts"] for r in risks)
