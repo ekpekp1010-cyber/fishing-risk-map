@@ -70,6 +70,8 @@ export interface LayerState {
   /** 아래 넷은 실시간 레이어 */
   wind: boolean;
   waves: boolean;
+  /** 기온. 파고와 같은 색 그림이라 둘 중 하나만 켠다 */
+  temp: boolean;
   radar: boolean;
   clouds: boolean;
   currents: boolean;
@@ -82,6 +84,7 @@ export const DEFAULT_LAYERS: LayerState = {
   satellite: true,
   wind: true,
   waves: false,
+  temp: false,
   radar: false,
   clouds: false,
   currents: false,
@@ -91,7 +94,7 @@ export const DEFAULT_LAYERS: LayerState = {
  * 실시간 레이어의 데이터 출처. 모두 키 없이 쓸 수 있는 공개 데이터다.
  * - 구름: NASA GIBS의 정지궤도 위성 GOES-West 영상(약 10분 간격, 확대 7단계까지)
  * - 레이더: 미국 NEXRAD 강수 레이더 합성(아이오와 주립대 IEM 제공, 미국만)
- * - 바람·파고: Open-Meteo의 현재 값(무료 사용은 비상업 용도)
+ * - 바람·파고·기온: Open-Meteo의 현재 값(무료 사용은 비상업 용도)
  */
 export const LIVE = {
   cloudsTiles:

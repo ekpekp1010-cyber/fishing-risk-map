@@ -8,7 +8,7 @@ import type { FeatureCollection } from 'geojson';
 import { ZONES_LAYER, type Grade, type SpotSummary } from '@/lib/contract/types';
 import { GRADE_LABEL, TYPE_LABEL } from '@/lib/ui/labels';
 import { GRADE_COLOR, LIVE, MAP_CONFIG, PANEL, PILOT, VIEW_3D, type LayerState } from '@/lib/map/config';
-import { startWindParticles, waveImage, type LiveGrid } from '@/lib/map/live';
+import { startWindParticles, tempImage, tempLabels, waveImage, type LiveGrid } from '@/lib/map/live';
 import { gradeShapeSvg } from '@/lib/map/pins';
 import type { OceanCurrent } from '@/lib/map/currents';
 import { createCurrentField, startCurrentParticles } from '@/lib/map/current-flow';
@@ -310,6 +310,8 @@ export default function MapView({
     set('clouds', layers.clouds);
     set('radar', layers.radar);
     set('waves', layers.waves);
+    set('temp', layers.temp);
+    set('temp-labels', layers.temp);
   }, [ready, layers]);
 
   // 실시간 파고: 칸의 경계 없이 부드러운 색 그라데이션으로 그린다
@@ -335,6 +337,45 @@ export default function MapView({
     }
     map.setLayoutProperty('waves', 'visibility', layers.waves ? 'visible' : 'none');
   }, [ready, liveGrid, layers.waves]);
+
+  // 실시간 기온: 파고와 같은 방식의 색 그라데이션에, 격자 지점마다 숫자를 적는다
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready || !liveGrid) return;
+    const image = tempImage(liveGrid);
+    if (!image) return;
+    const labels = tempLabels(liveGrid);
+    const source = map.getSource('temp') as maplibregl.ImageSource | undefined;
+    if (source) {
+      source.updateImage(image);
+      (map.getSource('temp-labels') as maplibregl.GeoJSONSource | undefined)?.setData(labels);
+    } else {
+      const symbols = map.getStyle().layers.filter((l) => l.type === 'symbol');
+      map.addSource('temp', { type: 'image', ...image });
+      map.addLayer(
+        {
+          id: 'temp',
+          type: 'raster',
+          source: 'temp',
+          paint: { 'raster-opacity': 0.6, 'raster-resampling': 'linear', 'raster-fade-duration': 0 },
+        },
+        symbols[0]?.id,
+      );
+      // 글꼴은 배경 지도가 이미 쓰는 것을 빌린다. 다른 글꼴을 지정하면 글리프를 받지 못해 숫자가 나오지 않는다.
+      const font = symbols.map((l) => l.layout?.['text-font']).find((f): f is string[] => Array.isArray(f));
+      map.addSource('temp-labels', { type: 'geojson', data: labels });
+      map.addLayer({
+        id: 'temp-labels',
+        type: 'symbol',
+        source: 'temp-labels',
+        layout: { 'text-field': ['get', 'label'], 'text-size': 14, ...(font ? { 'text-font': font } : {}) },
+        paint: { 'text-color': '#ffffff', 'text-halo-color': 'rgba(0, 0, 0, 0.75)', 'text-halo-width': 1.6 },
+      });
+    }
+    const visibility = layers.temp ? 'visible' : 'none';
+    map.setLayoutProperty('temp', 'visibility', visibility);
+    map.setLayoutProperty('temp-labels', 'visibility', visibility);
+  }, [ready, liveGrid, layers.temp]);
 
   // 실시간 바람: 흐르는 입자. 움직임을 줄이도록 설정한 사용자에게는 그리지 않는다.
   useEffect(() => {

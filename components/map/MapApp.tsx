@@ -15,7 +15,7 @@ import SpotSheet from '@/components/spot/SpotSheet';
 import SpotList from '@/components/spot/SpotList';
 import { retry, USE_FIXTURES, useApi, useLastReady, useRegionAlerts, type ApiRequest } from '@/lib/hooks/api';
 import { DEFAULT_LAYERS, LIVE, PILOT, inPilotBbox, type LayerState } from '@/lib/map/config';
-import { liveSummary, loadLiveGrid, WAVE_STOPS, type LiveGrid } from '@/lib/map/live';
+import { liveSummary, loadLiveGrid, TEMP_STOPS, WAVE_STOPS, type LiveGrid } from '@/lib/map/live';
 import { loadCurrentForecast, type CurrentForecast } from '@/lib/map/currents';
 import type { Grade, SpotSummary, SpotType } from '@/lib/contract/types';
 import { fixtureZonesGeoJson } from '@/lib/ui/dev-fixtures';
@@ -25,7 +25,10 @@ import { addHoursIso, floorToHourIso, formatClock, formatPlaceTime, HOURS_AHEAD 
 const WAVE_MAX = WAVE_STOPS[WAVE_STOPS.length - 1][0];
 const WAVE_GRADIENT = `linear-gradient(to right, ${WAVE_STOPS.map(([h, c]) => `${c} ${(h / WAVE_MAX) * 100}%`).join(', ')})`;
 /** 넓게 봐야 보이는 실시간 레이어. 켜면 지도가 물러난다. */
-const WIDE_LAYERS = ['waves', 'radar', 'clouds'] as const;
+const WIDE_LAYERS = ['waves', 'temp', 'radar', 'clouds'] as const;
+const TEMP_MIN = TEMP_STOPS[0][0];
+const TEMP_MAX = TEMP_STOPS[TEMP_STOPS.length - 1][0];
+const TEMP_GRADIENT = `linear-gradient(to right, ${TEMP_STOPS.map(([t, c]) => `${c} ${((t - TEMP_MIN) / (TEMP_MAX - TEMP_MIN)) * 100}%`).join(', ')})`;
 
 const MAX_INDEX = HOURS_AHEAD - 1;
 const NO_SPOTS: SpotSummary[] = [];
@@ -120,8 +123,8 @@ export default function MapApp() {
     return () => clearInterval(id);
   }, [playing]);
 
-  // 실시간 바람·파고: 해당 레이어가 켜져 있을 때만 받는다.
-  const needsLive = boot.webgl && (layers.wind || layers.waves);
+  // 실시간 바람·파고·기온: 해당 레이어가 켜져 있을 때만 받는다.
+  const needsLive = boot.webgl && (layers.wind || layers.waves || layers.temp);
   useEffect(() => {
     if (!needsLive) return;
     let alive = true;
@@ -130,7 +133,7 @@ export default function MapApp() {
         if (alive) setLiveGrid(grid);
       },
       () => {
-        if (alive) setSnack('실시간 바람·파고를 불러오지 못했습니다.');
+        if (alive) setSnack('실시간 바람·파고·기온을 불러오지 못했습니다.');
       },
     );
     return () => {
@@ -202,7 +205,11 @@ export default function MapApp() {
     );
   };
 
-  const changeLayers = (next: LayerState) => {
+  const changeLayers = (requested: LayerState) => {
+    // 파고와 기온은 둘 다 지도를 색으로 덮는다. 겹치면 색을 읽을 수 없으므로 새로 켠 쪽만 남긴다.
+    const next = { ...requested };
+    if (next.temp && !layers.temp) next.waves = false;
+    if (next.waves && !layers.waves) next.temp = false;
     const turnedOnWide = WIDE_LAYERS.some((k) => next[k] && !layers[k]);
     setLayers(next);
     if (next.currents && !layers.currents) {
@@ -260,6 +267,7 @@ export default function MapApp() {
               일대 실시간 {formatClock(live.observedAt)}
               {live.windSpeed !== null && ` · 바람 ${live.windSpeed.toFixed(1)} m/s`}
               {live.waveHeight !== null && ` · 앞바다 파고 ${live.waveHeight.toFixed(1)} m`}
+              {live.temperature !== null && ` · 기온 ${Math.round(live.temperature)}°C`}
             </p>
           )}
           {alert && (
@@ -276,6 +284,14 @@ export default function MapApp() {
               파고
               <span className="wave-legend__bar" style={{ background: WAVE_GRADIENT }} aria-hidden="true" />
               0 ~ {WAVE_MAX} m
+            </p>
+          )}
+          {layers.temp && (
+            <p className="wave-legend">
+              기온
+              <span className="wave-legend__bar" style={{ background: TEMP_GRADIENT }} aria-hidden="true" />
+              {TEMP_MIN} ~ {TEMP_MAX}°C
+              {live?.feelsLike != null && ` · 체감 ${Math.round(live.feelsLike)}°C`}
             </p>
           )}
           {layers.currents && (
