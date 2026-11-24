@@ -38,12 +38,18 @@ describe('gradeOf', () => {
   });
 });
 
+// 주의·위험 시작값(게이트 2에서 바뀔 수 있어 상수에서 읽는다)
+const [WAVE_C, WAVE_D] = [BREAKPOINTS.wave[1][0], BREAKPOINTS.wave[2][0]];
+const [SWELL_C, SWELL_D] = [BREAKPOINTS.swell[1][0], BREAKPOINTS.swell[2][0]];
+
 describe('scale', () => {
-  it('PRD의 주의·위험 시작이 40·70점', () => {
-    expect(scale(1.0, BREAKPOINTS.wave)).toBe(40);
-    expect(scale(2.0, BREAKPOINTS.wave)).toBe(70);
-    expect(scale(10, BREAKPOINTS.swell)).toBe(40);
-    expect(scale(14, BREAKPOINTS.swell)).toBe(70);
+  it('주의·위험 시작이 40·70점', () => {
+    expect(scale(WAVE_C, BREAKPOINTS.wave)).toBe(40);
+    expect(scale(WAVE_D, BREAKPOINTS.wave)).toBe(70);
+    expect(scale(SWELL_C, BREAKPOINTS.swell)).toBe(40);
+    expect(scale(SWELL_D, BREAKPOINTS.swell)).toBe(70);
+    expect(scale(12, BREAKPOINTS.gust)).toBe(40);
+    expect(scale(21, BREAKPOINTS.gust)).toBe(70);
     expect(scale(8, BREAKPOINTS.wind)).toBe(40);
     expect(scale(14, BREAKPOINTS.wind)).toBe(70);
     expect(scale(5, BREAKPOINTS.rain)).toBe(40);
@@ -62,7 +68,7 @@ describe('scale', () => {
   });
 
   it('구간 사이는 선형', () => {
-    expect(scale(1.5, BREAKPOINTS.wave)).toBeCloseTo(55);
+    expect(scale((WAVE_C + WAVE_D) / 2, BREAKPOINTS.wave)).toBeCloseTo(55);
   });
 });
 
@@ -72,14 +78,14 @@ describe('computeHazard', () => {
   });
 
   it('H는 가장 큰 요인 점수 이상', () => {
-    const h = computeHazard({ ...calm, waveHeightM: 2.0, windSpeedMs: 8 }, pier);
+    const h = computeHazard({ ...calm, waveHeightM: WAVE_D, windSpeedMs: 8 }, pier);
     expect(h.score).toBe(70);
     expect(h.factors[0].code).toBe('wave');
   });
 
   it('너울 주기는 파고 1 m 미만이면 보지 않는다', () => {
     expect(computeHazard({ ...calm, swellPeriodS: 16, swellHeightM: 0.8 }, pier).byCode.swell).toBe(0);
-    expect(computeHazard({ ...calm, swellPeriodS: 14, swellHeightM: 1.2 }, pier).byCode.swell).toBe(70);
+    expect(computeHazard({ ...calm, swellPeriodS: SWELL_D, swellHeightM: 1.2 }, pier).byCode.swell).toBe(70);
   });
 
   it('조석은 포인트와 퇴로 중 낮은 쪽 고도로 본다', () => {
@@ -92,12 +98,14 @@ describe('computeHazard', () => {
     expect(computeHazard({ ...calm, riverRatio: 4 }, { ...pier, type: 'estuary' }).byCode.river).toBe(70);
   });
 
-  it('돌풍도 같은 구간으로 본다', () => {
-    expect(computeHazard({ ...calm, windSpeedMs: 5, windGustMs: 14 }, pier).byCode.wind).toBe(70);
+  it('바람 점수는 풍속·돌풍 중 큰 쪽. 돌풍은 풍속 구간 ×1.5', () => {
+    expect(computeHazard({ ...calm, windSpeedMs: 5, windGustMs: 21 }, pier).byCode.wind).toBe(70);
+    expect(computeHazard({ ...calm, windSpeedMs: 14, windGustMs: 15 }, pier).byCode.wind).toBe(70);
+    expect(computeHazard({ ...calm, windSpeedMs: 3, windGustMs: 12 }, pier).byCode.wind).toBe(40);
   });
 
   it('만 안쪽 포인트는 파랑·너울 점수를 노출 정도만큼 줄인다(하한 0.25)', () => {
-    const c = { ...calm, waveHeightM: 2.0, swellHeightM: 2.0, swellPeriodS: 14 };
+    const c = { ...calm, waveHeightM: WAVE_D, swellHeightM: 2.0, swellPeriodS: SWELL_D };
     expect(computeHazard(c, { ...pier, waveExposure: 0.5 }).byCode.wave).toBe(35);
     expect(computeHazard(c, { ...pier, waveExposure: 0.5 }).byCode.swell).toBe(35);
     expect(computeHazard(c, { ...pier, waveExposure: 0 }).byCode.wave).toBeCloseTo(17.5);
@@ -113,7 +121,7 @@ describe('computeHazard', () => {
 
 describe('computeHourlyRisk', () => {
   it('R = 0.4V + 0.6H + B', () => {
-    const r = computeHourlyRisk({ ...calm, waveHeightM: 2.0 }, pier, terrain(20));
+    const r = computeHourlyRisk({ ...calm, waveHeightM: WAVE_D }, pier, terrain(20));
     expect(r.hazard).toBe(70);
     expect(r.bonus).toBe(0);
     expect(r.score).toBe(Math.round(0.4 * 20 + 0.6 * 70));
@@ -166,9 +174,9 @@ describe('computeHourlyRisk', () => {
         { code: 'low_elevation', label: '저지대', score: 10 },
       ],
     };
-    const c = { ...calm, waveHeightM: 1.5, windSpeedMs: 8, precipitationMm: 6 };
+    const c = { ...calm, waveHeightM: (WAVE_C + WAVE_D) / 2, windSpeedMs: 8, precipitationMm: 6 };
     const r = computeHourlyRisk(c, { ...jetty, slopeDeg: 5 }, t);
-    // 파랑 0.6·55=33, 바람 0.6·40=24, 강수 0.6·42=25, 경사 0.4·80=32
+    // 파랑 0.6·55=33, 경사 0.4·80=32, 강수 0.6·42=25, 바람 0.6·40=24
     expect(r.causes.map((x) => x.code)).toEqual(['wave', 'slope', 'rain']);
   });
 

@@ -121,7 +121,7 @@ export function computeHazard(c: HourConditions, spot: SpotProfile): HazardResul
 
   if (has(c.windSpeedMs) || has(c.windGustMs)) {
     const sSpeed = has(c.windSpeedMs) ? scale(c.windSpeedMs, BREAKPOINTS.wind) : 0;
-    const sGust = has(c.windGustMs) ? scale(c.windGustMs, BREAKPOINTS.wind) : 0;
+    const sGust = has(c.windGustMs) ? scale(c.windGustMs, BREAKPOINTS.gust) : 0;
     const parts = [
       has(c.windSpeedMs) ? `풍속 ${Math.round(c.windSpeedMs)} m/s` : null,
       has(c.windGustMs) ? `돌풍 ${Math.round(c.windGustMs)} m/s` : null,

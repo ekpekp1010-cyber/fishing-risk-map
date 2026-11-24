@@ -43,6 +43,7 @@ for (const ugc of UGCS) {
 const terrain = JSON.parse(readFileSync(join(ROOT, 'pipeline/out/incidents/terrain.json'), 'utf8'));
 const season = (t) => ([10, 11, 12, 1, 2, 3, 4].includes(new Date(t).getUTCMonth() + 1) ? 'winter' : 'summer');
 const out = [];
+const samples = []; // sweep.mjs가 임계값을 바꿔 다시 계산할 때 쓴다
 for (const t of terrain) {
   const { lat, lng } = t.snapped;
   const base = `latitude=${lat}&longitude=${lng}&start_date=${START}&end_date=${END}&timezone=UTC`;
@@ -73,6 +74,7 @@ for (const t of terrain) {
     const live = alerts.filter((a) => a.issue <= ms && ms < a.expire)
       .map((a) => ({ source: 'NWS', event: a.name, headline: a.name, expires: new Date(a.expire).toISOString() }));
     const s = season(time);
+    samples.push({ id: t.incident.id, season: s, c, live, profile, tin });
     const g = computeHourlyRisk(c, profile, tin, live).grade;
     counts[s][g]++;
     counts[s].n++;
@@ -85,6 +87,7 @@ for (const t of terrain) {
     ` (경보 빼면 위험 ${pct(noAlert.winter.danger, w.n)}) | 5~9월 안전 ${pct(su.safe, su.n)} 주의 ${pct(su.caution, su.n)} 위험 ${pct(su.danger, su.n)}`);
 }
 
+writeFileSync(join(ROOT, 'pipeline/out/incidents/control_samples.json'), JSON.stringify(samples));
 const pct = (x, n) => `${Math.round((100 * x) / n)}%`;
 writeFileSync(join(ROOT, 'pipeline/validation/control_results.md'), [
   '# 게이트 2 대조군: 사고 지점의 평소 등급',

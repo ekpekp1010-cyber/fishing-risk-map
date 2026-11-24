@@ -186,6 +186,7 @@ A는 위 네 응답의 예시를 `lib/contract/fixtures/`에 `spots.json`, `spot
 | 날짜 | 버전 | 내용 |
 | --- | --- | --- |
 | 2026-11-24 | v0 | 첫 초안 |
+| 2026-11-24 | v0 | 응답 모양 변경 없음. 위험도 임계값 재조정(게이트 2): 평소 '안전'이 늘고 '위험'이 줄어든다 |
 | 2026-11-24 | v0 | `SpotsResponse.alerts` 추가(B 요청), 예시 `spots-alert.json` 추가 |
 | 2026-11-24 | v0 | `/api/zones/grades`, `/api/recommendations` 구현. 원인 코드 `no_forecast` 추가(필드 변경 없음) |
 | 2026-11-24 | v0 | 오류 코드 `FORECAST_UNAVAILABLE`(503) 추가. `/api/spots`, `/api/spots/{id}/risk` 구현(DB 연결 전) |
