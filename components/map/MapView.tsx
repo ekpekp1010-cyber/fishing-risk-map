@@ -8,7 +8,7 @@ import type { FeatureCollection } from 'geojson';
 import { ZONES_LAYER, type Grade, type SpotSummary } from '@/lib/contract/types';
 import { GRADE_LABEL, TYPE_LABEL } from '@/lib/ui/labels';
 import { GRADE_COLOR, LIVE, MAP_CONFIG, PILOT, VIEW_3D, type LayerState } from '@/lib/map/config';
-import { startWindParticles, WAVE_STOPS, waveCells, type LiveGrid } from '@/lib/map/live';
+import { startWindParticles, waveImage, type LiveGrid } from '@/lib/map/live';
 import { gradeShapeSvg } from '@/lib/map/pins';
 
 export interface MapFocus {
@@ -55,7 +55,6 @@ export default function MapView({
   selectedId,
   onSelect,
   zoneGrades,
-  zonesGeoJson,
   layers,
   mode,
   focus,
@@ -140,20 +139,7 @@ export default function MapView({
         { id: 'clouds', type: 'raster', source: 'clouds', layout: { visibility: 'none' }, paint: { 'raster-opacity': 0.85 } },
         firstLabelLayer,
       );
-      map.addSource('waves', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-      map.addLayer(
-        {
-          id: 'waves',
-          type: 'fill',
-          source: 'waves',
-          layout: { visibility: 'none' },
-          paint: {
-            'fill-color': ['interpolate', ['linear'], ['get', 'h'], ...WAVE_STOPS.flat()] as unknown as maplibregl.ExpressionSpecification,
-            'fill-opacity': 0.55,
-          },
-        },
-        firstLabelLayer,
-      );
+      // 파고 레이어는 실시간 값을 받은 뒤에 그림으로 추가한다(아래 "실시간 파고" 참고).
       map.addSource('radar', {
         type: 'raster',
         tiles: [LIVE.radarTiles],
@@ -204,15 +190,30 @@ export default function MapView({
         type: 'fill',
         source: 'zones',
         ...sourceLayer,
-        paint: { 'fill-color': NEUTRAL, 'fill-opacity': 0.45 },
+        paint: { 'fill-color': NEUTRAL, 'fill-opacity': 0.35, 'fill-antialias': false },
       } as maplibregl.AddLayerObject);
+      // 윤곽선을 긋지 않는다. 가장자리를 넓게 흐려 주변과 자연스럽게 이어지게 한다.
       map.addLayer({
         id: 'zones-line',
         type: 'line',
         source: 'zones',
         ...sourceLayer,
-        paint: { 'line-color': NEUTRAL, 'line-width': 2.5 },
+        paint: { 'line-color': NEUTRAL, 'line-width': 28, 'line-blur': 28, 'line-opacity': 0.35 },
       } as maplibregl.AddLayerObject);
+      // 실제 구역 도형이 없을 때: 포인트를 중심으로 바깥으로 갈수록 옅어지는 색(반지름 약 600 m)
+      map.addSource('zone-glow', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      map.addLayer({
+        id: 'zone-glow',
+        type: 'circle',
+        source: 'zone-glow',
+        paint: {
+          'circle-color': ['match', ['get', 'grade'], 'safe', GRADE_COLOR.safe, 'caution', GRADE_COLOR.caution, GRADE_COLOR.danger],
+          'circle-blur': 1,
+          'circle-opacity': 0.9,
+          'circle-pitch-alignment': 'map',
+          'circle-radius': ['interpolate', ['exponential', 2], ['zoom'], 8, 1.5, 18, 1500],
+        },
+      });
 
       // 성능 측정용 표시: 페이지를 연 뒤 지도를 조작할 수 있게 되기까지 걸린 시간
       performance.mark('map-ready');
@@ -254,6 +255,7 @@ export default function MapView({
     };
     set('zones-fill', layers.zones);
     set('zones-line', layers.zones);
+    set('zone-glow', layers.zones);
     set('relief', layers.relief);
     set('flood', layers.flood);
     set('satellite', layers.satellite);
@@ -262,12 +264,29 @@ export default function MapView({
     set('waves', layers.waves);
   }, [ready, layers]);
 
-  // 실시간 파고: 격자를 색 칸으로 그린다
+  // 실시간 파고: 칸의 경계 없이 부드러운 색 그라데이션으로 그린다
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready || !liveGrid) return;
-    (map.getSource('waves') as maplibregl.GeoJSONSource | undefined)?.setData(waveCells(liveGrid));
-  }, [ready, liveGrid]);
+    const image = waveImage(liveGrid);
+    if (!image) return;
+    const source = map.getSource('waves') as maplibregl.ImageSource | undefined;
+    if (source) {
+      source.updateImage(image);
+    } else {
+      map.addSource('waves', { type: 'image', ...image });
+      map.addLayer(
+        {
+          id: 'waves',
+          type: 'raster',
+          source: 'waves',
+          paint: { 'raster-opacity': 0.6, 'raster-resampling': 'linear', 'raster-fade-duration': 0 },
+        },
+        map.getStyle().layers.find((l) => l.type === 'symbol')?.id,
+      );
+    }
+    map.setLayoutProperty('waves', 'visibility', layers.waves ? 'visible' : 'none');
+  }, [ready, liveGrid, layers.waves]);
 
   // 실시간 바람: 흐르는 입자. 움직임을 줄이도록 설정한 사용자에게는 그리지 않는다.
   useEffect(() => {
@@ -277,12 +296,19 @@ export default function MapView({
     return startWindParticles(map, liveGrid);
   }, [ready, liveGrid, layers.wind]);
 
-  // 임시 구역 도형 (PMTiles가 없을 때)
+  // 실제 구역 도형(PMTiles)이 없을 때: 포인트 등급으로 그라데이션 구역을 그린다
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !ready || MAP_CONFIG.zonesPmtilesUrl !== null || !zonesGeoJson) return;
-    (map.getSource('zones') as maplibregl.GeoJSONSource | undefined)?.setData(zonesGeoJson);
-  }, [ready, zonesGeoJson]);
+    if (!map || !ready || MAP_CONFIG.zonesPmtilesUrl !== null) return;
+    (map.getSource('zone-glow') as maplibregl.GeoJSONSource | undefined)?.setData({
+      type: 'FeatureCollection',
+      features: spots.map((s) => ({
+        type: 'Feature',
+        properties: { grade: s.grade },
+        geometry: { type: 'Point', coordinates: [s.lng, s.lat] },
+      })),
+    });
+  }, [ready, spots]);
 
   // 시각에 따라 구역 색 바꾸기
   useEffect(() => {

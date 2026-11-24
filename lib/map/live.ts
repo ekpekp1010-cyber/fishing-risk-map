@@ -2,7 +2,6 @@
 // 출처는 Open-Meteo(키 불필요, 무료 사용은 비상업 용도). 브라우저에서 직접 부르며 15분 동안 다시 부르지 않는다.
 // 운영 단계에서는 개발자 A의 서버가 모아 둔 값을 받도록 바꾼다(docs/api-contract.md 요청 참고).
 
-import type { FeatureCollection, Polygon } from 'geojson';
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import { LIVE } from './config';
 
@@ -112,33 +111,83 @@ export function liveSummary(grid: LiveGrid, lng: number, lat: number) {
   return { windSpeed: wind?.speed ?? null, waveHeight: wave as number | null, observedAt: grid.observedAt };
 }
 
-/** 파고를 색 칸으로 그리기 위한 도형. 육지 칸은 뺀다. */
-export function waveCells(grid: LiveGrid): FeatureCollection<Polygon> {
-  const half = LIVE.region.step / 2;
-  const features: FeatureCollection<Polygon>['features'] = [];
-  grid.lats.forEach((lat, r) =>
-    grid.lngs.forEach((lng, c) => {
-      const h = grid.wave[r][c];
-      if (h === null) return;
-      features.push({
-        type: 'Feature',
-        properties: { h },
-        geometry: {
-          type: 'Polygon',
-          coordinates: [
-            [
-              [lng - half, lat - half],
-              [lng + half, lat - half],
-              [lng + half, lat + half],
-              [lng - half, lat + half],
-              [lng - half, lat - half],
-            ],
-          ],
-        },
-      });
-    }),
-  );
-  return { type: 'FeatureCollection', features };
+const hexToRgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+
+function waveColor(h: number): number[] {
+  for (let i = 1; i < WAVE_STOPS.length; i++) {
+    const [h0, c0] = WAVE_STOPS[i - 1];
+    const [h1, c1] = WAVE_STOPS[i];
+    if (h <= h1) {
+      const t = Math.max(0, (h - h0) / (h1 - h0));
+      const a = hexToRgb(c0);
+      const b = hexToRgb(c1);
+      return a.map((v, k) => v + (b[k] - v) * t);
+    }
+  }
+  return hexToRgb(WAVE_STOPS[WAVE_STOPS.length - 1][1]);
+}
+
+export type ImageCorners = [[number, number], [number, number], [number, number], [number, number]];
+
+/**
+ * 파고를 경계선 없이 부드러운 색 그라데이션으로 그리기 위한 그림.
+ * 격자 사이를 이어 붙여 칸의 경계가 보이지 않게 하고, 육지에 가까울수록 투명해지게 한다.
+ */
+export function waveImage(grid: LiveGrid): { url: string; coordinates: ImageCorners } | null {
+  const SCALE = 8;
+  const cols = grid.lngs.length;
+  const rows = grid.lats.length;
+  const canvas = document.createElement('canvas');
+  canvas.width = (cols - 1) * SCALE + 1;
+  canvas.height = (rows - 1) * SCALE + 1;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  const img = ctx.createImageData(canvas.width, canvas.height);
+  for (let y = 0; y < canvas.height; y++) {
+    for (let x = 0; x < canvas.width; x++) {
+      const fx = x / SCALE;
+      const fy = (canvas.height - 1 - y) / SCALE; // 그림의 첫 줄이 북쪽이다
+      const x0 = Math.min(Math.floor(fx), cols - 2);
+      const y0 = Math.min(Math.floor(fy), rows - 2);
+      const tx = fx - x0;
+      const ty = fy - y0;
+      const corners: Array<[number, number, number]> = [
+        [y0, x0, (1 - tx) * (1 - ty)],
+        [y0, x0 + 1, tx * (1 - ty)],
+        [y0 + 1, x0, (1 - tx) * ty],
+        [y0 + 1, x0 + 1, tx * ty],
+      ];
+      let sum = 0;
+      let weight = 0;
+      for (const [r, c, w] of corners) {
+        const h = grid.wave[r][c];
+        if (h !== null) {
+          sum += h * w;
+          weight += w;
+        }
+      }
+      if (weight <= 0) continue;
+      const [red, green, blue] = waveColor(sum / weight);
+      const o = (y * canvas.width + x) * 4;
+      img.data[o] = red;
+      img.data[o + 1] = green;
+      img.data[o + 2] = blue;
+      // 바다 칸의 비중이 낮은 곳(해안)은 옅게 해서 육지 쪽으로 자연스럽게 사라지게 한다.
+      // 격자가 성겨 해안선 위치를 정확히 알 수 없으므로, 바다 칸과 육지 칸의 중간쯤에서 사라지게 한다.
+      img.data[o + 3] = Math.round(255 * Math.min(1, Math.max(0, (weight - 0.5) / 0.35)));
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  const { west, south, east, north } = LIVE.region;
+  return {
+    url: canvas.toDataURL(),
+    coordinates: [
+      [west, north],
+      [east, north],
+      [east, south],
+      [west, south],
+    ],
+  };
 }
 
 /** 파고 색 단계(m → 색). 지도 레이어와 범례가 함께 쓴다. */
