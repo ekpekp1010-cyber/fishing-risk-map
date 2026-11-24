@@ -149,6 +149,8 @@ npm run build
 
 ## 진행 기록 (2026-11-24)
 
+- 다음 작업: 실사 3D 지도와 새 화면 구성으로 재설계한다. 계획은 [docs/redesign-plan.md](../redesign-plan.md)에 있다.
+
 예시 데이터로 0~4단계의 화면을 모두 만들었다. 아래는 계획과 다르게 했거나 남은 일이다.
 
 - 타입은 A의 `lib/contract/types.ts`를 쓴다. 임시 타입 파일(`lib/ui/api-types.ts`)은 지웠다.
