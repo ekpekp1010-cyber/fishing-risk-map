@@ -127,8 +127,9 @@ export default function PhotorealView({ apiKey, photoreal, view, spots, zones, g
   }, []);
 
   // 실사 타일이 제때 오지 않으면 가벼운 지도로 대신한다.
+  // 개발 서버는 코드를 처음 요청받을 때 컴파일하느라 타일 요청이 20초 넘게 늦을 수 있어 시간 초과를 쓰지 않는다.
   useEffect(() => {
-    if (fallback) return;
+    if (fallback || process.env.NODE_ENV === 'development') return;
     const timer = setTimeout(() => {
       if (stats.current.firstTileAt === null) fallBack('timeout');
     }, PHOTOREAL_TIMEOUT_MS);
