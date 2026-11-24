@@ -51,7 +51,9 @@ const pinIcon = (grade: Grade) => ({
 });
 
 export default function PhotorealView({ apiKey, view, spots, zones, grades, onCredits, onStats, onError }: Props) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  // Deck이 캔버스를 직접 만들게 하면, 개발 모드에서 효과가 두 번 실행될 때 첫 캔버스가 남아 지도를 밀어낸다.
+  // 그래서 캔버스는 이 컴포넌트가 그리고 Deck은 거기에 그리기만 한다.
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const deckRef = useRef<Deck | null>(null);
   const stats = useRef<PhotorealStats>({ tilesetLoadedAt: null, firstTileAt: null, tilesLoaded: 0, tileErrors: 0 });
   // 콜백은 바뀌어도 Deck을 다시 만들지 않도록 ref로 들고 있는다.
@@ -62,9 +64,9 @@ export default function PhotorealView({ apiKey, view, spots, zones, grades, onCr
 
   // Deck은 한 번만 만든다.
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!canvasRef.current) return;
     const deck = new Deck({
-      parent: containerRef.current,
+      canvas: canvasRef.current,
       initialViewState: view,
       controller: { type: TerrainController, touchRotate: true, inertia: 250 },
       onError: (error) => callbacks.current.onError(error.message),
@@ -95,6 +97,8 @@ export default function PhotorealView({ apiKey, view, spots, zones, grades, onCr
       loadOptions: { fetch: { headers: { 'X-GOOG-API-KEY': apiKey } } },
       // 구역과 핀이 이 표면을 지형으로 쓴다.
       operation: 'terrain+draw',
+      // TerrainController가 화면 가운데의 지형 높이를 깊이 피킹으로 읽는다.
+      pickable: '3d',
       onTilesetLoad: (tileset) => {
         stats.current.tilesetLoadedAt ??= Math.round(performance.now());
         report();
@@ -153,5 +157,9 @@ export default function PhotorealView({ apiKey, view, spots, zones, grades, onCr
     deckRef.current?.setProps({ layers: [tiles, zoneLayer, pinLayer] });
   }, [apiKey, spots, zones, grades]);
 
-  return <div ref={containerRef} className="photoreal" />;
+  return (
+    <div className="photoreal">
+      <canvas ref={canvasRef} className="photoreal__canvas" />
+    </div>
+  );
 }
