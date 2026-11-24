@@ -3,7 +3,8 @@
 -- 모든 테이블은 RLS를 켜고 정책을 두지 않는다. 읽기·쓰기는 서버(Route Handler, 파이프라인)가
 -- service role 키로만 한다. 브라우저에 직접 열 테이블이 생기면 그때 읽기 정책을 추가한다.
 
-create extension if not exists postgis;
+-- Supabase 권장대로 extensions 스키마에 둔다(기본 search_path에 포함된다).
+create extension if not exists postgis with schema extensions;
 
 -- 예보 격자 셀: 0.05° 단위. id 예: "44.60_-124.05"
 create table public.forecast_cells (
