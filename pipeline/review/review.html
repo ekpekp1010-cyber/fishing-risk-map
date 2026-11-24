@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>포인트 검수 · 낚시 위험도 1단계</title>
+<link rel="stylesheet" href="/node_modules/maplibre-gl/dist/maplibre-gl.css">
+<style>
+  :root { --bg:#f7f7f5; --panel:#fff; --line:#dcdcd6; --ink:#1f2328; --mute:#626a73; --accent:#1f6feb;
+          --jetty:#8a5a00; --pier:#0b6e4f; --beach:#b8860b; --estuary:#6f42c1; --rocks:#b42318; }
+  * { box-sizing: border-box; }
+  body { margin:0; font: 14px/1.45 system-ui, "Segoe UI", "Malgun Gothic", sans-serif; color:var(--ink); background:var(--bg);
+         display:grid; grid-template-columns: minmax(380px, 34%) 1fr; height:100vh; }
+  aside { display:flex; flex-direction:column; border-right:1px solid var(--line); background:var(--panel); min-height:0; }
+  header { padding:12px 14px; border-bottom:1px solid var(--line); }
+  h1 { font-size:16px; margin:0 0 4px; }
+  .sub { color:var(--mute); font-size:12px; }
+  .bar { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; align-items:center; }
+  button, select, input[type=text] { font:inherit; }
+  button { border:1px solid var(--line); background:#fff; border-radius:6px; padding:5px 10px; cursor:pointer; }
+  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  button[aria-pressed=true] { background:#e7f0ff; border-color:var(--accent); }
+  .stats { font-size:12px; color:var(--mute); margin-top:6px; }
+  #list { overflow:auto; flex:1; }
+  .row { padding:8px 14px; border-bottom:1px solid #eee; cursor:pointer; }
+  .row.sel { background:#eef4ff; }
+  .row.off { opacity:.5; }
+  .row .top { display:flex; gap:8px; align-items:center; }
+  .dot { width:10px; height:10px; border-radius:50%; flex:none; }
+  .name { font-weight:600; flex:1; }
+  .v { font-variant-numeric: tabular-nums; font-size:12px; color:var(--mute); }
+  .mark { font-size:11px; padding:1px 6px; border-radius:10px; border:1px solid var(--line); }
+  .mark.match { background:#e6f4ea; border-color:#9bd3ae; } .mark.mismatch { background:#fdecea; border-color:#f1a7a0; }
+  .mark.edited { background:#fff7e0; border-color:#e8cf86; }
+  #detail { border-top:1px solid var(--line); padding:12px 14px; background:#fbfbfa; max-height:48%; overflow:auto; }
+  #detail[hidden] { display:none; }
+  label { display:block; font-size:12px; color:var(--mute); margin:6px 0 2px; }
+  input[type=text], select, textarea { width:100%; padding:5px 7px; border:1px solid var(--line); border-radius:6px; font:inherit; background:#fff; }
+  textarea { min-height:44px; resize:vertical; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:0 10px; }
+  table.f { width:100%; border-collapse:collapse; font-size:12px; margin-top:6px; }
+  table.f td { padding:2px 4px; border-bottom:1px solid #eee; } table.f td.n { text-align:right; font-variant-numeric:tabular-nums; width:40px; }
+  .seg { display:flex; gap:4px; } .seg button { flex:1; padding:4px 6px; font-size:12px; }
+  main { position:relative; min-width:0; }
+  #map { position:absolute; inset:0; }
+  .legend { position:absolute; left:10px; bottom:28px; background:#fff; border:1px solid var(--line); border-radius:8px; padding:6px 10px; font-size:12px; }
+  .legend span { display:inline-flex; align-items:center; gap:4px; margin-right:8px; }
+  .hint { position:absolute; left:50%; top:10px; transform:translateX(-50%); background:#1f2328; color:#fff; padding:6px 12px; border-radius:16px; font-size:12px; }
+  .hint[hidden] { display:none; }
+  .err { color:#b42318; padding:14px; }
+</style>
+</head>
+<body>
+<aside>
+  <header>
+    <h1>낚시 포인트 검수</h1>
+    <div class="sub">자동 선정 초안을 위성 사진과 대조해 남길 곳·이름·위치를 고친다. 바뀐 내용은 이 브라우저에 자동 저장되고, 마지막에 CSV로 내려받는다.</div>
+    <div class="bar">
+      <select id="filterType" aria-label="유형">
+        <option value="">모든 유형</option><option value="jetty">방파제</option><option value="pier">부두</option>
+        <option value="beach">해변</option><option value="estuary">하구 갯벌</option><option value="rocks">갯바위</option>
+      </select>
+      <select id="filterState" aria-label="상태">
+        <option value="">모두</option><option value="keep">남김</option><option value="drop">뺌</option>
+        <option value="unchecked">표본 미확인</option><option value="edited">고친 것</option>
+      </select>
+      <button id="addBtn" aria-pressed="false" title="지도를 눌러 새 포인트를 추가">+ 포인트 추가</button>
+    </div>
+    <div class="bar">
+      <button class="primary" id="saveBtn">CSV 내려받기</button>
+      <button id="resetBtn" title="이 브라우저에 저장된 수정을 지우고 원본으로">원본으로 되돌리기</button>
+    </div>
+    <div class="stats" id="stats"></div>
+  </header>
+  <div id="list" role="listbox" aria-label="포인트 목록"></div>
+  <section id="detail" hidden></section>
+</aside>
+<main>
+  <div id="map"></div>
+  <div class="hint" id="hint" hidden>지도를 눌러 새 포인트 위치를 고른다 (Esc 취소)</div>
+  <div class="legend" id="legend"></div>
+</main>
+
+<script type="module">
+import * as maplibregl from '/node_modules/maplibre-gl/dist/maplibre-gl.mjs';
+maplibregl.setWorkerUrl('/node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs');
+
+const TYPES = { jetty:'방파제', pier:'부두', beach:'해변', estuary:'하구 갯벌', rocks:'갯바위' };
+const COLORS = Object.fromEntries(Object.keys(TYPES).map(t => [t, getComputedStyle(document.documentElement).getPropertyValue('--' + t).trim()]));
+const COLS = ['id','name','type','lat','lng','forecast_cell','osm_id','osm_name','keep','note','sample_check'];
+const STORE = 'fishrisk-review-v1';
+const FACTOR_KO = { slope:'경사', low_elevation:'저지대', flood_trace:'침수 흔적', water_proximity:'수변 근접', wave_exposure:'파랑 노출', surface:'지표', egress:'퇴로' };
+
+// ---- CSV ------------------------------------------------------------------------
+function parseCsv(text) {
+  const rows = []; let row = [], cell = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) { if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += ch; }
+    else if (ch === '"') q = true;
+    else if (ch === ',') { row.push(cell); cell = ''; }
+    else if (ch === '\n' || ch === '\r') { if (ch === '\r' && text[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; }
+    else cell += ch;
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row); }
+  const head = rows.shift();
+  return rows.filter(r => r.length > 1).map(r => Object.fromEntries(head.map((h, i) => [h, r[i] ?? ''])));
+}
+const esc = v => /[",\n\r]/.test(v) ? '"' + v.replaceAll('"', '""') + '"' : v;
+const toCsv = rows => [COLS.join(','), ...rows.map(r => COLS.map(c => esc(String(r[c] ?? ''))).join(','))].join('\n') + '\n';
+
+// pipeline/fishrisk/config.py cell_id와 같은 규칙
+const snap = v => Math.floor(v / 0.05 + 0.5) * 0.05;
+const cellId = (lat, lng) => `${(snap(lat) + 0).toFixed(2)}_${(snap(lng) + 0).toFixed(2)}`;
+const escapeHtml = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+
+// ---- 상태 -------------------------------------------------------------------------
+let original = [], spots = [], terrain = {}, selected = null, addMode = false;
+
+async function load() {
+  const csv = await fetch('./spots_draft.csv', { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error('spots_draft.csv를 읽지 못했다'); return r.text(); });
+  original = parseCsv(csv).map(r => ({ sample_check: '', ...r }));
+  try {
+    const t = await fetch('../out/terrain_scores.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : []);
+    terrain = Object.fromEntries(t.map(x => [x.spot_id, x]));
+  } catch { terrain = {}; }
+  const saved = JSON.parse(localStorage.getItem(STORE) || 'null');
+  spots = saved?.rows ?? structuredClone(original);
+}
+const persist = () => localStorage.setItem(STORE, JSON.stringify({ savedAt: new Date().toISOString(), rows: spots }));
+const origOf = id => original.find(o => o.id === id);
+const isEdited = s => { const o = origOf(s.id); return !o || ['name','type','lat','lng','keep','note'].some(k => String(o[k]) !== String(s[k])); };
+
+// ---- 지도 ---------------------------------------------------------------------------
+const map = new maplibregl.Map({
+  container: 'map',
+  center: [-124.058, 44.632], zoom: 13.2, maxZoom: 19,
+  style: {
+    version: 8,
+    sources: {
+      sat: { type: 'raster', tileSize: 256, maxzoom: 16,
+        tiles: ['https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}'],
+        attribution: 'USDA, USGS The National Map: Orthoimagery' },
+      osm: { type: 'raster', tileSize: 256, maxzoom: 19, tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], attribution: '© OpenStreetMap 기여자' },
+    },
+    layers: [
+      { id: 'sat', type: 'raster', source: 'sat' },
+      { id: 'osm', type: 'raster', source: 'osm', layout: { visibility: 'none' } },
+    ],
+  },
+});
+window.reviewMap = map; // 디버깅용
+map.on('error', e => console.error('map error', e.error?.message || e));
+map.addControl(new maplibregl.NavigationControl(), 'top-right');
+map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }));
+
+class BaseToggle {
+  onAdd(m) {
+    const el = document.createElement('div'); el.className = 'maplibregl-ctrl maplibregl-ctrl-group';
+    const b = document.createElement('button'); b.textContent = '지도'; b.style.width = 'auto'; b.style.padding = '0 8px';
+    b.title = '위성 사진 / 일반 지도 전환';
+    b.onclick = () => { const sat = m.getLayoutProperty('sat', 'visibility') !== 'none';
+      m.setLayoutProperty('sat', 'visibility', sat ? 'none' : 'visible'); m.setLayoutProperty('osm', 'visibility', sat ? 'visible' : 'none');
+      b.textContent = sat ? '위성' : '지도'; };
+    el.append(b); return el;
+  }
+  onRemove() {}
+}
+map.addControl(new BaseToggle(), 'top-right');
+
+const markers = new Map();
+function markerEl(s) {
+  const el = document.createElement('div');
+  el.style.cssText = `width:16px;height:16px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #0006;cursor:grab;background:${COLORS[s.type] || '#555'}`;
+  el.title = s.name;
+  return el;
+}
+function styleMarker(s) {
+  const m = markers.get(s.id); if (!m) return;
+  const el = m.getElement();
+  el.style.background = COLORS[s.type] || '#555';
+  el.style.opacity = s.keep === 'yes' ? '1' : '.35';
+  el.style.outline = selected === s.id ? '3px solid #ffd33d' : 'none';
+  el.style.zIndex = selected === s.id ? '2' : '1';
+  el.title = s.name;
+}
+function addMarker(s) {
+  const m = new maplibregl.Marker({ element: markerEl(s), draggable: true }).setLngLat([+s.lng, +s.lat]).addTo(map);
+  m.getElement().addEventListener('click', e => { e.stopPropagation(); select(s.id, false); });
+  m.on('dragend', () => { const { lng, lat } = m.getLngLat(); s.lat = lat.toFixed(6); s.lng = lng.toFixed(6); s.forecast_cell = cellId(lat, lng); persist(); select(s.id, false); });
+  markers.set(s.id, m); styleMarker(s);
+}
+
+// ---- 목록·상세 -------------------------------------------------------------------------
+const $ = id => document.getElementById(id);
+function visible(s) {
+  const t = $('filterType').value, st = $('filterState').value;
+  if (t && s.type !== t) return false;
+  if (st === 'keep' && s.keep !== 'yes') return false;
+  if (st === 'drop' && s.keep === 'yes') return false;
+  if (st === 'unchecked' && s.sample_check) return false;
+  if (st === 'edited' && !isEdited(s)) return false;
+  return true;
+}
+function renderStats() {
+  const keep = spots.filter(s => s.keep === 'yes').length;
+  const m = spots.filter(s => s.sample_check === 'match').length, mm = spots.filter(s => s.sample_check === 'mismatch').length;
+  const ed = spots.filter(isEdited).length;
+  $('stats').textContent = `전체 ${spots.length} · 남김 ${keep} · 고친 것 ${ed} · 표본 대조 ${m + mm}곳(일치 ${m}, 불일치 ${mm}) — 게이트 1: 남김 30곳 이상, 표본 10곳`;
+}
+function renderList() {
+  const list = $('list'); list.innerHTML = '';
+  for (const s of spots.filter(visible)) {
+    const t = terrain[s.id];
+    const div = document.createElement('div');
+    div.className = 'row' + (selected === s.id ? ' sel' : '') + (s.keep === 'yes' ? '' : ' off');
+    div.setAttribute('role', 'option'); div.tabIndex = 0;
+    div.innerHTML = `<div class="top"><span class="dot" style="background:${COLORS[s.type]}"></span>
+      <span class="name">${escapeHtml(s.name)}</span>
+      ${isEdited(s) ? '<span class="mark edited">고침</span>' : ''}
+      ${s.sample_check ? `<span class="mark ${s.sample_check}">${s.sample_check === 'match' ? '일치' : '불일치'}</span>` : ''}
+      <span class="v">${t ? 'V ' + t.score : (origOf(s.id) ? '' : '새 포인트')}</span></div>
+      <div class="sub">${TYPES[s.type] || s.type} · ${escapeHtml(s.id)}${s.keep === 'yes' ? '' : ' · 뺌'}</div>`;
+    div.onclick = () => select(s.id, true);
+    div.onkeydown = e => { if (e.key === 'Enter') select(s.id, true); };
+    list.append(div);
+  }
+  renderStats();
+}
+function field(label, html) { return `<label>${label}</label>${html}`; }
+function renderDetail() {
+  const d = $('detail'); const s = spots.find(x => x.id === selected);
+  if (!s) { d.hidden = true; return; }
+  const t = terrain[s.id];
+  const factors = t ? `<table class="f">${t.factors.map(f => `<tr><td>${FACTOR_KO[f.code] || f.code}</td><td>${escapeHtml(f.label)}</td><td class="n">${f.score}</td></tr>`).join('')}</table>
+     <div class="sub">V ${t.score} · 신뢰도 ${t.confidence} · 고도 ${t.elevation_m} m · 도보 ${t.access_walk_minutes}분(${escapeHtml(t.access_from)})</div>`
+     : '<div class="sub">지형 점수 없음(새 포인트는 다음 계산 때 생긴다)</div>';
+  d.hidden = false;
+  d.innerHTML = `
+    ${field('이름(화면에 보이는 한국어 이름)', `<input type="text" id="fName" value="${escapeHtml(s.name)}">`)}
+    <div class="grid2">
+      ${field('유형', `<select id="fType">${Object.entries(TYPES).map(([k, v]) => `<option value="${k}" ${k === s.type ? 'selected' : ''}>${v}</option>`).join('')}</select>`)}
+      ${field('남길까', `<div class="seg"><button id="kYes" aria-pressed="${s.keep === 'yes'}">남김</button><button id="kNo" aria-pressed="${s.keep !== 'yes'}">뺌</button></div>`)}
+    </div>
+    ${field('표본 대조: 위성 사진으로 본 인상과 지형 점수가 맞는가', `<div class="seg">
+      <button id="sMatch" aria-pressed="${s.sample_check === 'match'}">맞음</button>
+      <button id="sMis" aria-pressed="${s.sample_check === 'mismatch'}">안 맞음</button>
+      <button id="sNone" aria-pressed="${!s.sample_check}">미확인</button></div>`)}
+    ${field('메모(뺀 이유, 안 맞는 점, 현장 정보)', `<textarea id="fNote">${escapeHtml(s.note)}</textarea>`)}
+    <div class="sub">위치 ${(+s.lat).toFixed(5)}, ${(+s.lng).toFixed(5)} · 마커를 끌어서 옮긴다 · OSM ${escapeHtml(s.osm_id || '-')} ${escapeHtml(s.osm_name || '')}</div>
+    ${factors}`;
+  const upd = (k, v) => { s[k] = v; persist(); styleMarker(s); renderList(); };
+  $('fName').oninput = e => { s.name = e.target.value; persist(); styleMarker(s); renderList(); };
+  $('fType').onchange = e => upd('type', e.target.value);
+  $('fNote').oninput = e => { s.note = e.target.value; persist(); };
+  $('kYes').onclick = () => { upd('keep', 'yes'); renderDetail(); };
+  $('kNo').onclick = () => { upd('keep', 'no'); renderDetail(); };
+  $('sMatch').onclick = () => { upd('sample_check', 'match'); renderDetail(); };
+  $('sMis').onclick = () => { upd('sample_check', 'mismatch'); renderDetail(); };
+  $('sNone').onclick = () => { upd('sample_check', ''); renderDetail(); };
+}
+function select(id, fly) {
+  const prev = selected; selected = id;
+  for (const s of spots) if (s.id === prev || s.id === id) styleMarker(s);
+  const s = spots.find(x => x.id === id);
+  if (fly && s) map.flyTo({ center: [+s.lng, +s.lat], zoom: Math.max(map.getZoom(), 16.5), speed: 1.6 });
+  renderList(); renderDetail();
+  document.querySelector('.row.sel')?.scrollIntoView({ block: 'nearest' });
+}
+
+// ---- 추가 ------------------------------------------------------------------------
+function setAdd(on) { addMode = on; $('addBtn').setAttribute('aria-pressed', on); $('hint').hidden = !on; map.getCanvas().style.cursor = on ? 'crosshair' : ''; }
+$('addBtn').onclick = () => setAdd(!addMode);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') setAdd(false); });
+map.on('click', e => {
+  if (!addMode) return;
+  const { lat, lng } = e.lngLat;
+  let n = 1; while (spots.some(s => s.id === `manual-rocks-${String(n).padStart(2, '0')}`)) n++;
+  const s = { id: `manual-rocks-${String(n).padStart(2, '0')}`, name: `새 갯바위 ${n}`, type: 'rocks', lat: lat.toFixed(6), lng: lng.toFixed(6),
+    forecast_cell: cellId(lat, lng), osm_id: '', osm_name: '', keep: 'yes', note: '검수 화면에서 추가', sample_check: '' };
+  spots.push(s); persist(); addMarker(s); setAdd(false); select(s.id, false);
+});
+
+// ---- 저장 ------------------------------------------------------------------------
+$('saveBtn').onclick = () => {
+  const blob = new Blob([toCsv(spots)], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'spots_draft.csv'; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+$('resetBtn').onclick = () => {
+  if (!confirm('이 브라우저에 저장된 수정을 모두 지우고 원본으로 되돌릴까요?')) return;
+  localStorage.removeItem(STORE); location.reload();
+};
+$('filterType').onchange = renderList; $('filterState').onchange = renderList;
+$('legend').innerHTML = Object.entries(TYPES).map(([k, v]) => `<span><span class="dot" style="background:${COLORS[k]}"></span>${v}</span>`).join('') + '<span style="opacity:.6">흐림 = 뺌</span>';
+
+try {
+  await load();
+  map.on('load', () => {});
+  for (const s of spots) addMarker(s);
+  renderList();
+} catch (e) {
+  $('list').innerHTML = `<div class="err">${escapeHtml(e.message)}. 저장소 루트에서 <code>python -m http.server 8765</code>로 띄우고 /pipeline/review/review.html 을 연다.</div>`;
+}
+</script>
+</body>
+</html>

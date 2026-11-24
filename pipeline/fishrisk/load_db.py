@@ -3,7 +3,7 @@
     python -m fishrisk.load_db            # pipeline/ 에서 실행. 저장소 루트의 .env.local을 읽는다
 
 - review/spots_draft.csv의 keep=yes는 active=true, keep=no는 active=false로 넣는다.
-- source가 'osm:'으로 시작하지 않는 포인트(손으로 넣은 확인용 등)는 건드리지 않는다.
+- 검수 화면에서 추가한 포인트는 source='review'로 넣는다. 표에 없는 DB 포인트(확인용 등)는 건드리지 않는다.
 - service role 키는 .env.local에서만 읽고 출력하지 않는다.
 """
 
@@ -72,7 +72,7 @@ def build_rows() -> tuple[list[dict], list[dict]]:
                 "access_from": t["access_from"] if t else None,
                 "forecast_cell_id": cell_id(s.lat, s.lng),
                 "active": keep and t is not None,
-                "source": f"osm:{s.osm_id}",
+                "source": f"osm:{s.osm_id}" if s.osm_id else "review",
                 "notes": s.note or "자동 선정 초안(사람 검수 전)",
             }
         )
