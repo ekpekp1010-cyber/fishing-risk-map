@@ -11,7 +11,8 @@ import type {
   SpotRiskResponse,
   SpotsResponse,
   ZoneGradesResponse,
-} from '@/lib/ui/api-types';
+} from '@/lib/contract/types';
+import * as contractFixtures from '@/lib/contract/fixtures';
 import { fixtureRecommendations, fixtureSpotRisk, fixtureSpots, fixtureZoneGrades } from '@/lib/ui/dev-fixtures';
 import { PILOT } from '@/lib/map/config';
 
@@ -45,14 +46,34 @@ export type Resource<T> =
   | { status: 'error'; error: ApiError };
 
 // ---- 예시 데이터 경로 -----------------------------------------------------
+// 기본은 시간에 따라 변하는 시뮬레이터(lib/ui/dev-fixtures.ts)다.
 // 주소에 ?demo=stale | error | coverage | slow 를 붙이면 해당 화면 상태를 확인할 수 있다.
+// 주소에 ?demo=contract | contract-empty 를 붙이면 개발자 A의 예시 응답(lib/contract/fixtures)을 그대로 보여 준다.
 
 const demoMode = () => (typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('demo'));
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** 계약의 예시 응답을 그대로 돌려준다. 화면이 계약대로 그려지는지 확인하는 용도라 시각은 고정이다. */
+function runContractFixture(req: ApiRequest, empty: boolean): unknown {
+  switch (req.kind) {
+    case 'spots':
+      return empty ? contractFixtures.spotsEmpty : contractFixtures.spots;
+    case 'spotRisk': {
+      const found = [contractFixtures.spotRisk, contractFixtures.spotRiskStale].find((r) => r.spot.id === req.id);
+      if (!found) throw new ApiError('NOT_FOUND', '예시 응답에 없는 포인트');
+      return found;
+    }
+    case 'zoneGrades':
+      return contractFixtures.zoneGrades;
+    case 'recommendations':
+      return empty ? contractFixtures.recommendationsEmpty : contractFixtures.recommendations;
+  }
+}
+
 async function runFixture(req: ApiRequest): Promise<unknown> {
   const demo = demoMode();
   await wait(demo === 'slow' ? 2500 : 120);
+  if (demo === 'contract' || demo === 'contract-empty') return runContractFixture(req, demo === 'contract-empty');
   switch (req.kind) {
     case 'spots':
       if (demo === 'coverage') throw new ApiError('OUT_OF_COVERAGE', '분석되지 않은 지역');

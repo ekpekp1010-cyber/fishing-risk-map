@@ -2,7 +2,7 @@
 
 import { GradeIcon, Icon } from './RiskBadge';
 import { retry, useApi, type ApiRequest } from '@/lib/hooks/api';
-import type { RecommendationItem } from '@/lib/ui/api-types';
+import type { RecommendationItem } from '@/lib/contract/types';
 import { GRADE_LABEL, SAFETY_NOTICE, TYPE_LABEL } from '@/lib/ui/labels';
 
 interface Props {
