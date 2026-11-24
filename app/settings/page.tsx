@@ -13,6 +13,7 @@ const SOURCES: Array<{ name: string; use: string; href: string; credit: string }
   { name: 'GEBCO', use: '근해 수심', href: 'https://www.gebco.net/', credit: 'GEBCO Compilation Group, GEBCO Grid' },
   { name: 'NOAA CO-OPS · NWS', use: '실측 수위, 기상 경보', href: 'https://tidesandcurrents.noaa.gov/', credit: 'NOAA / National Weather Service' },
   { name: 'OpenStreetMap', use: '배경 지도, 접근로', href: 'https://www.openstreetmap.org/copyright', credit: '© OpenStreetMap contributors' },
+  { name: 'USGS The National Map', use: '지형 위에 입히는 항공 사진(미국)', href: 'https://www.usgs.gov/programs/national-geospatial-program/national-map', credit: 'USDA, USGS The National Map: Orthoimagery' },
   { name: 'Mapzen Terrain Tiles', use: '개발 단계의 3D 지형', href: 'https://registry.opendata.aws/terrain-tiles/', credit: 'Terrain Tiles hosted on AWS Open Data' },
 ];
 

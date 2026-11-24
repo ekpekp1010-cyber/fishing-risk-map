@@ -16,7 +16,7 @@ const LAYER_ITEMS: Array<{ key: keyof LayerState; label: string; available: bool
   { key: 'zones', label: '위험 구역', available: true },
   { key: 'relief', label: '지형 음영(경사)', available: true },
   { key: 'flood', label: '과거 침수 흔적', available: MAP_CONFIG.floodTiles !== null, note: '데이터 준비 중' },
-  { key: 'satellite', label: '위성 영상', available: MAP_CONFIG.satelliteTiles !== null, note: '데이터 준비 중' },
+  { key: 'satellite', label: '항공·위성 사진', available: true },
 ];
 
 export default function MapControls({ mode, onMode, layers, onLayers, onLocate }: Props) {
