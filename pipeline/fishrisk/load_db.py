@@ -73,7 +73,7 @@ def build_rows() -> tuple[list[dict], list[dict]]:
                 "forecast_cell_id": cell_id(s.lat, s.lng),
                 "active": keep and t is not None,
                 "source": f"osm:{s.osm_id}" if s.osm_id else "review",
-                "notes": s.note or "자동 선정 초안(사람 검수 전)",
+                "notes": s.note or ("검수 완료" if s.sample_check else "자동 선정 초안(사람 검수 전)"),
             }
         )
         if t:
