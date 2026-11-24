@@ -273,7 +273,8 @@ DATA_VINTAGE = {
 
 # 1 m 라이다 고도(lidar.py)를 쓸 수 있는 유형별 범위(평균해면 기준, m). 벗어나면 포인트 위치가
 # 1 m 지형과 어긋난 것으로 보고 30 m 고도·기본값을 그대로 쓴다.
-LIDAR_VALID_RANGE_M = {"jetty": (1.5, 8.0), "beach": (0.8, 4.0), "rocks": (0.0, 10.0), "estuary": (-1.5, 2.5)}
+# 해변·갯벌은 '물러설 곳' 높이라 범위가 더 높다(2026-11-24 변경).
+LIDAR_VALID_RANGE_M = {"jetty": (1.5, 8.0), "beach": (1.5, 8.0), "rocks": (0.0, 10.0), "estuary": (0.5, 8.0)}
 
 
 def lidar_elevation(spot_type: str, rec: dict | None) -> tuple[float | None, str]:
@@ -310,8 +311,10 @@ def run(
         lv, elev_source = lidar_elevation(s.type, (lidar or {}).get(lidar_prefix + s.id))
         floor = STRUCTURE_MIN_ELEV_M.get(s.type)
         if lv is not None:
-            # 라이다가 있으면 기본값 대신 실제 고도를 쓴다. 퇴로 최저 고도는 30 m 방식 그대로.
+            # 라이다가 있으면 기본값 대신 실제 고도를 쓴다. 30 m 퇴로 최저 고도는 물가 칸에서 출발해 0 m가 되므로
+            # 쓰지 않고 같은 높이로 둔다(해변·갯벌은 물러설 곳, 방파제는 마루). 1 m 퇴로 경로는 아직 따라가 보지 않았다.
             m.elevation_m = lv
+            m.egress_min_elevation_m = lv
         elif floor is not None and m.elevation_m < floor:
             m.elevation_m = floor
             # 구조물 위를 걷는 구간도 같은 높이로 본다.
@@ -333,6 +336,7 @@ def run(
                 "egress_min_elevation_m": round(m.egress_min_elevation_m, 1),
                 "factors": [f.to_dict() for f in v.factors],
                 "confidence": "medium" if lv is not None else confidence_of(s, m),
+                "refuge_distance_m": ((lidar or {}).get(lidar_prefix + s.id) or {}).get("refuge_distance_m") if lv is not None else None,
                 "elevation_source": elev_source if lv is not None or elev_source == "lidar_rejected" else ("floor" if floor is not None and m.elevation_m == floor else "copernicus30"),
                 "data_vintage": vintage,
                 "access_walk_minutes": walk_minutes(m.egress_distance_m),

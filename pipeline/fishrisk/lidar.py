@@ -84,16 +84,15 @@ def read_msl(path: Path) -> tuple[np.ndarray, rasterio.Affine]:
 
 MHHW_ABOVE_MSL_M = (12.91 - 9.02) * 0.3048  # NOAA 9435380: 평균 고고조면 − 평균해면 ≈ 1.19 m
 RULE_RADIUS_M = 30
-DRY_SEARCH_M = 80
+REFUGE_RADIUS_M = 100
 
 
 def standing_elevation(path: Path, lat: float, lng: float, spot_type: str) -> dict:
     """유형별로 사람이 서는 자리의 고도(평균해면 기준). OSM 좌표는 1 m 자료에 견주면 10~20 m씩 어긋나므로
     점 한 칸이 아니라 둘레에서 유형에 맞는 지형을 찾는다.
     - 방파제: 반경 30 m 상위 5% (마루 위를 걷는다)
-    - 해변: 평소 만조선(MHHW) 위 가장 가까운 마른 모래(80 m 안). 없으면 반경 30 m의 75%
+    - 해변·하구 갯벌: 물러설 곳 = 반경 100 m 상위 10% (뒤쪽 마른 모래·둑). 그곳까지 거리도 기록
     - 갯바위: 반경 30 m 하위 25% (절벽 위가 아니라 물가 암반 단)
-    - 하구 갯벌: 반경 30 m의 75%
     """
     a, t = read_msl(path)
     x, y = to_utm.transform(lng, lat)
@@ -108,12 +107,16 @@ def standing_elevation(path: Path, lat: float, lng: float, spot_type: str) -> di
         return {"elevation_m": float(np.percentile(near, 95)), "rule": "crest_p95_30m"}
     if spot_type == "rocks":
         return {"elevation_m": float(np.percentile(near, 25)), "rule": "bench_p25_30m"}
-    if spot_type == "beach":
-        dry = ok & (a > MHHW_ABOVE_MSL_M) & (d <= DRY_SEARCH_M)
-        if dry.any():
-            k = np.unravel_index(np.where(dry, d, np.inf).argmin(), a.shape)
-            return {"elevation_m": float(a[k]), "rule": "nearest_above_mhhw", "distance_m": round(float(d[k]), 1)}
-        return {"elevation_m": float(np.percentile(near, 75)), "rule": "p75_30m"}
+    if spot_type in ("beach", "estuary"):
+        # 물러설 곳: 해변·갯벌에서는 물이 들어오면 뒤로 물러선다. 위험은 물러설 곳까지 물·파도가 닿는지다.
+        # 반경 100 m 지면의 상위 10% 높이(해변 뒤 마른 모래·모래언덕 앞, 갯벌 가장자리 둑)와 그곳까지의 거리.
+        wide = ok & (d <= REFUGE_RADIUS_M)
+        if not wide.any():
+            return {"elevation_m": None, "rule": "no_data"}
+        refuge = float(np.percentile(a[wide], 90))
+        reach = ok & (a >= refuge - 0.5) & (d <= REFUGE_RADIUS_M)
+        dist = float(np.where(reach, d, np.inf).min())
+        return {"elevation_m": refuge, "rule": "refuge_p90_100m", "refuge_distance_m": round(dist, 1)}
     return {"elevation_m": float(np.percentile(near, 75)), "rule": "p75_30m"}
 
 
