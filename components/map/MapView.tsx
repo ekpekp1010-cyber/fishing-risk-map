@@ -44,6 +44,8 @@ interface Props {
   /** 시간 막대의 시각에 해당하는 기온 격자. 그 시각의 값이 없으면 null이고 기온 그림을 숨긴다 */
   tempField: TempField | null;
   currents?: OceanCurrent[];
+  /** 내 위치(파란 점). 없으면 그리지 않는다 */
+  userLocation?: { lng: number; lat: number } | null;
   /** 시간 막대의 시각에 태양이 지평선 위로 떠 있는 높이(도). null이면 밤낮을 표시하지 않고 한낮으로 그린다 */
   sunAltitude: number | null;
 }
@@ -83,6 +85,7 @@ export default function MapView({
   liveGrid,
   tempField,
   currents,
+  userLocation = null,
   sunAltitude,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -91,11 +94,14 @@ export default function MapView({
   const pinsRef = useRef(new Map<string, PinEntry>());
   const onSelectRef = useRef(onSelect);
   const onMoveRef = useRef(onMove);
+  // 지도를 만들 때와 이동할 때 2D·3D 시점을 정하는 데 쓴다.
+  const modeRef = useRef(mode);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     onSelectRef.current = onSelect;
     onMoveRef.current = onMove;
+    modeRef.current = mode;
   });
 
   // 지도 만들기 (한 번)
@@ -113,8 +119,9 @@ export default function MapView({
       style: MAP_CONFIG.styleUrl,
       center: PILOT.center,
       zoom: PILOT.zoom,
-      pitch: VIEW_3D.pitch,
-      bearing: VIEW_3D.bearing,
+      // 2D로 시작하면 처음부터 위에서 수직으로 본다.
+      pitch: modeRef.current === '3d' ? VIEW_3D.pitch : 0,
+      bearing: modeRef.current === '3d' ? VIEW_3D.bearing : 0,
       maxPitch: 80,
       attributionControl: false,
     });
@@ -532,6 +539,22 @@ export default function MapView({
     }
   }, [ready, spots, selectedId]);
 
+  // 내 위치(파란 점)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready || !userLocation) return;
+    const el = document.createElement('div');
+    el.className = 'user-dot';
+    el.setAttribute('role', 'img');
+    el.setAttribute('aria-label', '내 위치');
+    const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
+      .setLngLat([userLocation.lng, userLocation.lat])
+      .addTo(map);
+    return () => {
+      marker.remove();
+    };
+  }, [ready, userLocation]);
+
   // 선택한 포인트나 검색 결과로 이동
   useEffect(() => {
     const map = mapRef.current;
@@ -539,10 +562,13 @@ export default function MapView({
     // 출처 표기는 지도를 끌면 (i) 버튼으로 접힌다. 포인트를 골라 이동할 때도 같은 조작으로 보고 접어,
     // 시트가 올라와 좁아진 지도를 가리지 않게 한다. (i)를 누르면 다시 펼쳐진다.
     map.getContainer().querySelector('.maplibregl-ctrl-attrib.maplibregl-compact')?.classList.remove('maplibregl-compact-show');
+    // 2D 보기에서는 이동할 때도 기울이지 않는다.
+    const flat = modeRef.current === '2d';
     if (focus.zoom !== undefined) {
-      map.flyTo({ center: [focus.lng, focus.lat], zoom: focus.zoom, pitch: 35, duration: 1400 });
+      map.flyTo({ center: [focus.lng, focus.lat], zoom: focus.zoom, pitch: flat ? 0 : 35, duration: 1400 });
     } else {
-      map.flyTo({ center: [focus.lng, focus.lat], zoom: Math.max(map.getZoom(), 15), pitch: VIEW_3D.pitch, duration: 1200 });
+      const pitch = flat ? 0 : VIEW_3D.pitch;
+      map.flyTo({ center: [focus.lng, focus.lat], zoom: Math.max(map.getZoom(), 15), pitch, duration: 1200 });
     }
   }, [ready, focus]);
 

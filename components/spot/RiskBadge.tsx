@@ -1,5 +1,5 @@
 import type { Confidence, Grade } from '@/lib/contract/types';
-import { CONFIDENCE_LABEL, GRADE_GLYPH, GRADE_LABEL } from '@/lib/ui/labels';
+import { CONFIDENCE_LABEL, GRADE_LABEL } from '@/lib/ui/labels';
 
 // 여러 화면이 함께 쓰는 작은 표시 요소: 아이콘, 등급 모양, 등급 배지.
 
@@ -30,23 +30,13 @@ export function Icon({ name, size = 24 }: { name: IconName; size?: number }) {
   );
 }
 
-/** 등급 모양: 안전은 원, 주의는 삼각형, 위험은 팔각형. 색 없이도 구분된다. */
+/** 등급 모양: 안전은 원, 주의는 삼각형, 위험은 팔각형. 글자 없이 색과 모양으로 구분한다. */
 export function GradeIcon({ grade, size = 24 }: { grade: Grade; size?: number }) {
   return (
     <svg viewBox="0 0 32 32" width={size} height={size} aria-hidden="true" focusable="false" className={`grade-shape grade-shape--${grade}`}>
       {grade === 'safe' && <circle cx="16" cy="16" r="13" />}
       {grade === 'caution' && <path d="M16 2.5 30.5 28h-29z" />}
       {grade === 'danger' && <path d="M10 2h12l8 8v12l-8 8H10l-8-8V10z" />}
-      <text
-        x="16"
-        y={grade === 'caution' ? 24 : 20.5}
-        textAnchor="middle"
-        fontSize="12"
-        fontWeight="700"
-        className={`grade-glyph grade-glyph--${grade}`}
-      >
-        {GRADE_GLYPH[grade]}
-      </text>
     </svg>
   );
 }
